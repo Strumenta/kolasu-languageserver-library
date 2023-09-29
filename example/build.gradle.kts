@@ -1,5 +1,6 @@
 plugins {
 	id("org.jetbrains.kotlin.jvm") version "1.8.22"
+	id("greeting-plugin") version "0.0.0"
 }
 
 repositories {
