@@ -1,0 +1,22 @@
+plugins
+{
+	id "java-gradle-plugin"
+	id "maven-publish"
+}
+
+gradlePlugin
+{
+	plugins
+	{
+		greeting {id = "greeting-plugin"; implementationClass = "com.strumenta.greeting.GreetingPlugin"}
+	}
+}
+
+group "com.strumenta"
+version "0.0.0"
+
+publishing
+{
+	repositories {mavenLocal()}
+	publications {mavenJava(MavenPublication)}
+}
