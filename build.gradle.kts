@@ -1,5 +1,6 @@
 plugins {
 	id("org.jetbrains.kotlin.jvm") version "1.8.22"
+	id("maven-publish")
 }
 
 repositories {
@@ -13,3 +14,8 @@ dependencies {
 
 group = "com.strumenta"
 version = "0.0.0"
+
+publishing {
+	repositories {mavenLocal()}
+	publications {create<MavenPublication>("mavenJava"){from(components["java"])}}
+}
