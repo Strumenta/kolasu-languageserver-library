@@ -14,4 +14,5 @@ dependencies {
 
 	implementation("com.strumenta:kolasu-languageserver-library:0.0.0")
 	implementation("com.strumenta.langmodules.kolasu-entities-languageserver:ast:0.0.1-SNAPSHOT")
+	implementation(kotlin("script-runtime"))
 }

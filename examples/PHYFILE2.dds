@@ -1,0 +1,6 @@
+     A                                      REF(LIBFILE)
+     A          R RPHYFILE                  TEXT('Department Master')
+     A*
+     A            CDID      R               TEXT('Record ID; DP/DZ')
+     A                                      COLHDG('ID')
+     A                                      REFFLD(AID)
