@@ -5,7 +5,7 @@ plugins {
 
 gradlePlugin {
 	plugins {
-		create("kolasuserver") {id = "kolasu-server-plugin"; implementationClass = "com.strumenta.kolasu.languageserver.KolasuServerPlugin"}
+		create("language-server-plugin") {id = "language-server-plugin"; implementationClass = "com.strumenta.kolasu.languageserver.KolasuServerPlugin"}
 	}
 }
 
