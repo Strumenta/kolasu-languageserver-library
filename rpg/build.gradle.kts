@@ -19,17 +19,17 @@ plugins {
 group = "com.strumenta.rpg"
 
 val githubUser = (
-        project.findProperty("starlasu.github.user")
-                ?: System.getenv("GITHUB_USER")
-                ?: System.getenv("STRUMENTA_PACKAGES_USER")
-        ) as? String
-        ?: throw RuntimeException("GitHub user not specified")
+    project.findProperty("starlasu.github.user")
+        ?: System.getenv("GITHUB_USER")
+        ?: System.getenv("STRUMENTA_PACKAGES_USER")
+    ) as? String
+    ?: throw RuntimeException("GitHub user not specified")
 val githubToken = (
-        project.findProperty("starlasu.github.token")
-                ?: System.getenv("GITHUB_TOKEN")
-                ?: System.getenv("STRUMENTA_PACKAGES_TOKEN")
-        ) as? String
-        ?: throw RuntimeException("GitHub token not specified")
+    project.findProperty("starlasu.github.token")
+        ?: System.getenv("GITHUB_TOKEN")
+        ?: System.getenv("STRUMENTA_PACKAGES_TOKEN")
+    ) as? String
+    ?: throw RuntimeException("GitHub token not specified")
 
 repositories {
     mavenLocal()
@@ -67,8 +67,10 @@ val jvmVersion = extra["jvmVersion"]
 dependencies {
     implementation("com.strumenta:rpg-parser:$rpgParserVersion")
     implementation(files("../jars/symbol-resolution-2.1.23-SNAPSHOT-all.jar"))
+    implementation("com.strumenta:language-server:0.0.0")
 
-    //implementation("com.strumenta:kolasu-python-langmodule:0.0.11")
+    implementation("com.strumenta.kolasu:kolasu-core:1.5.31")
+    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
 
     implementation("org.antlr:antlr4-runtime:$antlrVersion")
     implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
