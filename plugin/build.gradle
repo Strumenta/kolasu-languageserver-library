@@ -8,7 +8,7 @@ gradlePlugin
 {
 	plugins
 	{
-		greeting {id = "greeting-plugin"; implementationClass = "com.strumenta.greeting.GreetingPlugin"}
+		kolasuserver {id = "kolasu-server-plugin"; implementationClass = "com.strumenta.kolasu.languageserver.KolasuServerPlugin"}
 	}
 }
 
