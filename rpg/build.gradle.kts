@@ -14,6 +14,7 @@ plugins {
     id("application")
 
     id("com.github.gmazzo.buildconfig") version "4.0.4"
+    id("language-server-plugin") version "0.0.0"
 }
 
 group = "com.strumenta.rpg"

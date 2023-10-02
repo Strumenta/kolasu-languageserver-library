@@ -1,4 +1,4 @@
-package com.example
+package com.strumenta.rpgle
 
 import com.strumenta.kolasu.languageserver.library.KolasuServer
 import com.strumenta.kolasu.parsing.KolasuParser
