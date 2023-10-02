@@ -3,6 +3,7 @@ package com.strumenta.kolasu.languageserver.library
 import com.strumenta.kolasu.model.Named
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.children
+import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.KolasuParser
 import com.strumenta.kolasu.parsing.KolasuToken
 import com.strumenta.kolasu.parsing.ParsingResult
@@ -39,7 +40,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.CompletableFuture
 
-class KolasuServer<R : Node, P : Parser, C : ParserRuleContext, T : KolasuToken>(private val parser: KolasuParser<R, P, C, T>, private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     private lateinit var client: LanguageClient
     private val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
