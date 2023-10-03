@@ -25,4 +25,8 @@ jobs:
         sdk install gradle 8.3
       shell: bash
     - name: Test
-      run: cd library && gradle check --stacktrace
+      run: |
+        cd library && gradle check --stacktrace && gradle publishToMavenLocal
+        cd ../plugin && gradle check --stacktrace && gradle publishToMavenLocal
+        cd ../example && gradle check --stacktrace
+        cd ../rpg && gradle check --stacktrace
