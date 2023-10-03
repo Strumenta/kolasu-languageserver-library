@@ -1,5 +1,6 @@
 plugins {
 	id("org.jetbrains.kotlin.jvm") version "1.8.22"
+	id("com.github.johnrengelman.shadow") version "7.1.2"
 	id("language-server-plugin") version "0.0.0"
 }
 
@@ -14,4 +15,11 @@ dependencies {
 
 	implementation("com.strumenta:language-server:0.0.0")
 	implementation("com.strumenta.langmodules.kolasu-entities-languageserver:ast:0.0.1-SNAPSHOT")
+}
+
+languageServer {
+	language = "Entities"
+	extension = "entities"
+	shadowJarName = project.name + "-all"
+	editor = "codium"
 }
