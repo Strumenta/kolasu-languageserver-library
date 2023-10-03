@@ -67,7 +67,7 @@ val jvmVersion = extra["jvmVersion"]
 
 dependencies {
     implementation("com.strumenta:rpg-parser:$rpgParserVersion")
-    implementation(files("../jars/symbol-resolution-2.1.23-SNAPSHOT-all.jar"))
+    implementation(files("jars/symbol-resolution-2.1.23-SNAPSHOT-all.jar"))
 
     implementation("org.antlr:antlr4-runtime:$antlrVersion")
     implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
