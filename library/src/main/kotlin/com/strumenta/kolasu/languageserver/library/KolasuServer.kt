@@ -4,11 +4,7 @@ import com.strumenta.kolasu.model.Named
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.children
 import com.strumenta.kolasu.parsing.ASTParser
-import com.strumenta.kolasu.parsing.KolasuParser
-import com.strumenta.kolasu.parsing.KolasuToken
 import com.strumenta.kolasu.parsing.ParsingResult
-import org.antlr.v4.runtime.Parser
-import org.antlr.v4.runtime.ParserRuleContext
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
