@@ -1,6 +1,5 @@
 package com.strumenta.kolasu.languageserver.library
 
-import com.strumenta.kolasu.model.Named
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.PossiblyNamed
 import com.strumenta.kolasu.model.children
@@ -37,10 +36,10 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.CompletableFuture
 
-class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
-    private lateinit var client: LanguageClient
-    private val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
+    protected lateinit var client: LanguageClient
+    protected val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
 
     fun startCommunication(inputStream: InputStream = System.`in`, outputStream: OutputStream = System.out) {
         val launcher = LSPLauncher.createServerLauncher(this, inputStream, outputStream)
@@ -134,7 +133,7 @@ class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val inclu
         if (node is PossiblyNamed && node.name != null) {
             node.position?.let {
                 val range = toLSPRange(it)
-                val symbol = DocumentSymbol(node.name, SymbolKind.Variable, range, range, "", mutableListOf())
+                val symbol = DocumentSymbol(node.name, symbolKindOf(node), range, range, "", mutableListOf())
                 parent.children.add(symbol)
                 nextParent = symbol
             }
@@ -142,6 +141,10 @@ class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val inclu
         node.children.forEach { child ->
             appendNamedChildren(child, nextParent)
         }
+    }
+
+    open fun symbolKindOf(node: Node): SymbolKind {
+        return SymbolKind.Variable
     }
 
     private fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
