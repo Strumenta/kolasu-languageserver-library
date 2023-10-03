@@ -1,0 +1,3 @@
+[submodule "examples/rpg"]
+	path = examples/rpg
+	url = git@github.com:Strumenta/kolasu-rpg-languageserver

@@ -28,6 +28,5 @@ jobs:
         STRUMENTA_PACKAGES_USER: ${{ secrets.STRUMENTA_PACKAGES_USER }}
         STRUMENTA_PACKAGES_TOKEN: ${{ secrets.STRUMENTA_PACKAGES_TOKEN }}
       run: |
-        cd library && gradle check --stacktrace && gradle publishToMavenLocal
-        cd ../plugin && gradle check --stacktrace && gradle publishToMavenLocal
-        cd ../rpg && gradle check --stacktrace
+        cd library && gradle check --stacktrace
+        cd ../plugin && gradle check --stacktrace
