@@ -3,46 +3,43 @@ package com.strumenta.languageserver
 import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import java.util.*
+
+open class LanguageServerExtension {
+    var editor: String = "code"
+    var language: String = "language"
+    var extension: String = "extension"
+    var shadowJarName: String = ""
+}
 
 class LanguageServerPlugin : Plugin<Project?> {
 
+    private var extension: LanguageServerExtension = LanguageServerExtension()
+
     override fun apply(project: Project?) {
         addCreateVscodeExtensionTask(project!!)
-        addLaunchCodiumTask(project)
-        addLaunchCodeTask(project)
+        addLaunchVscodeEditorTask(project)
+
+        project.extensions.add("languageServer", LanguageServerExtension::class.java)
+        extension = project.extensions.getByType(LanguageServerExtension::class.java)
+        extension.shadowJarName = project.name
     }
 
-    private fun addLaunchCodeTask(project: Project) {
+    private fun addLaunchVscodeEditorTask(project: Project) {
         project.tasks.create("launchCode").apply {
             this.group = "language server";
-            this.description = "Launch Visual Studio Code with the language server installed";
+            this.description = "Launch the configured vscode editor with the language server installed (defaults to code)";
             this.actions = listOf(Action { _ ->
                 try {
-                    ProcessBuilder("code", "--extensionDevelopmentPath", "${project.projectDir}/build/extension", "${project.projectDir}/examples").start().waitFor()
+                    ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/extension", "${project.projectDir}/examples").start().waitFor()
                 } catch (exception: Exception) {
                     System.err.println(exception.message)
                 }
             })
             this.dependsOn(project.tasks.getByName("createVscodeExtension"))
-        };
-    }
-
-    private fun addLaunchCodiumTask(project: Project) {
-        project.tasks.create("launchCodium").apply {
-            this.group = "language server";
-            this.description = "Launch codium with the language server installed";
-            this.actions = listOf(Action { _ ->
-                try {
-                    ProcessBuilder("codium", "--extensionDevelopmentPath", "${project.projectDir}/build/extension", "${project.projectDir}/examples").start().waitFor()
-                } catch (exception: Exception) {
-                    System.err.println(exception.message)
-                }
-            })
-            this.dependsOn.add(project.tasks.getByName("createVscodeExtension"))
         };
     }
 
@@ -52,17 +49,17 @@ class LanguageServerPlugin : Plugin<Project?> {
             this.description = "Create language server extension folder for vscode under build/extension";
             this.actions = listOf(Action { _ ->
                 try {
-                    val name = "rpgle"
+                    val name = extension.language
                     Files.createDirectories(Paths.get("build", "extension"))
                     Files.writeString(Paths.get("build", "extension", "package.json"), """
                         {
-                            "name": "$name",
+                            "name": "${name.lowercase(Locale.getDefault())}",
                             "version": "0.0.0",
                             "contributes":
                             {
                                 "languages":
                                 [
-                                    {"id": "$name", "extensions": [".$name"]}
+                                    {"id": "$name", "extensions": [".${extension.extension}"]}
                                 ]
                             },
                             "engines": {"vscode": "^1.52.0"},
@@ -86,7 +83,11 @@ class LanguageServerPlugin : Plugin<Project?> {
                         module.exports = {activate};
                     """.trimIndent())
 
-                    Files.copy(Paths.get("build", "libs", project.name+".jar"), Paths.get("build", "extension", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
+                    if (extension.shadowJarName == "")
+                    {
+                        extension.shadowJarName = project.name
+                    }
+                    Files.copy(Paths.get("build", "libs", extension.shadowJarName+".jar"), Paths.get("build", "extension", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
 
                     ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").start().waitFor()
                     ProcessBuilder("npx", "esbuild", "build/extension/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/extension/client.js", "--allow-overwrite").start().waitFor()

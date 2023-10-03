@@ -149,3 +149,9 @@ buildConfig {
     packageName("com.strumenta.rpgle")
     buildConfigField("String", "TRANSPILER_VERSION", "\"${project.version}\"")
 }
+
+languageServer {
+    editor = "codium"
+    language = "RPG"
+    extension = "rpgle"
+}
