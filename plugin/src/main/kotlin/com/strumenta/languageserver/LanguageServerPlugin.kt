@@ -11,8 +11,9 @@ import java.util.*
 open class LanguageServerExtension {
     var editor: String = "code"
     var language: String = "language"
-    var extension: String = "extension"
+    var fileExtensions: List<String> = listOf("extension")
     var shadowJarName: String = ""
+    var examples: String = "examples"
 }
 
 class LanguageServerPlugin : Plugin<Project?> {
@@ -43,7 +44,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             this.actions = listOf(
                 Action { _ ->
                     try {
-                        ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/extension", "${project.projectDir}/examples").start().waitFor()
+                        ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/extension", "${project.projectDir}/${extension.examples}").start().waitFor()
                     } catch (exception: Exception) {
                         System.err.println(exception.message)
                     }
@@ -65,37 +66,37 @@ class LanguageServerPlugin : Plugin<Project?> {
                         Files.writeString(
                             Paths.get("build", "extension", "package.json"),
                             """
-                        {
-                            "name": "${name.lowercase(Locale.getDefault())}",
-                            "version": "0.0.0",
-                            "contributes":
                             {
-                                "languages":
-                                [
-                                    {"id": "$name", "extensions": [".${extension.extension}"]}
-                                ]
-                            },
-                            "engines": {"vscode": "^1.52.0"},
-                            "activationEvents": ["onLanguage:$name"],
-                            "main": "client.js"
-                        }
+                                "name": "${name.lowercase(Locale.getDefault())}",
+                                "version": "0.0.0",
+                                "contributes":
+                                {
+                                    "languages":
+                                    [
+                                        {"id": "$name", "extensions": ["${extension.fileExtensions.joinToString("\", \"")}"]}
+                                    ]
+                                },
+                                "engines": {"vscode": "^1.52.0"},
+                                "activationEvents": ["onLanguage:$name"],
+                                "main": "client.js"
+                            }
                             """.trimIndent()
                         )
                         Files.writeString(
                             Paths.get("build", "extension", "client.js"),
                             """
                         let {LanguageClient} = require("../node_modules/vscode-languageclient/node");
-    
+
                         async function activate (context)
                         {
                             let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar")]}};
-    
+
                             let languageClient = new LanguageClient("$name", "$name language server", productionServer, {documentSelector: ["$name"]});
                             await languageClient.start();
-    
+
                             context.subscriptions.push(languageClient);
                         }
-    
+
                         module.exports = {activate};
                             """.trimIndent()
                         )
