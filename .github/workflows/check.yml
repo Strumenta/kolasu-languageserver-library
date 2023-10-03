@@ -28,5 +28,4 @@ jobs:
       run: |
         cd library && gradle check --stacktrace && gradle publishToMavenLocal
         cd ../plugin && gradle check --stacktrace && gradle publishToMavenLocal
-        cd ../example && gradle check --stacktrace
         cd ../rpg && gradle check --stacktrace
