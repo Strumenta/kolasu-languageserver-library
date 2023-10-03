@@ -15,5 +15,19 @@ gradlePlugin {
     }
 }
 
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/Strumenta/kolasu-languageserver-library")
+            credentials {
+                username = project.findProperty("starlasu.github.user").toString()
+                password = project.findProperty("starlasu.github.token").toString()
+            }
+        }
+    }
+    publications { create<MavenPublication>("mavenJava") { from(components["java"]) } }
+}
+
 group = "com.strumenta"
 version = "0.0.0"
