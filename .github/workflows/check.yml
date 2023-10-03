@@ -23,8 +23,10 @@ jobs:
         curl -s "https://get.sdkman.io" | bash
         source "$HOME/.sdkman/bin/sdkman-init.sh"
         sdk install gradle 8.3
-      shell: bash
     - name: Test
+      env:
+        STRUMENTA_PACKAGES_USER: ${{ secrets.STRUMENTA_PACKAGES_USER }}
+        STRUMENTA_PACKAGES_TOKEN: ${{ secrets.STRUMENTA_PACKAGES_TOKEN }}
       run: |
         cd library && gradle check --stacktrace && gradle publishToMavenLocal
         cd ../plugin && gradle check --stacktrace && gradle publishToMavenLocal
