@@ -20,16 +20,24 @@ class LanguageServerPlugin : Plugin<Project?> {
     private var extension: LanguageServerExtension = LanguageServerExtension()
 
     override fun apply(project: Project?) {
-        addCreateVscodeExtensionTask(project!!)
+        if (project == null) return
+
+        project.repositories.add(project.repositories.mavenCentral())
+        project.repositories.add(project.repositories.mavenLocal())
+
+        project.dependencies.add("implementation", "com.strumenta:language-server:0.0.0")
+        project.dependencies.add("implementation", "com.strumenta.kolasu:kolasu-core:1.5.31")
+        project.dependencies.add("implementation", "org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
+
+        addCreateVscodeExtensionTask(project)
         addLaunchVscodeEditorTask(project)
 
         project.extensions.add("languageServer", LanguageServerExtension::class.java)
         extension = project.extensions.getByType(LanguageServerExtension::class.java)
-        extension.shadowJarName = project.name
     }
 
     private fun addLaunchVscodeEditorTask(project: Project) {
-        project.tasks.create("launchCode").apply {
+        project.tasks.create("launchVscodeEditor").apply {
             this.group = "language server";
             this.description = "Launch the configured vscode editor with the language server installed (defaults to code)";
             this.actions = listOf(Action { _ ->
