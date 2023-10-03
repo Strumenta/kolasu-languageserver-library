@@ -38,28 +38,33 @@ class LanguageServerPlugin : Plugin<Project?> {
 
     private fun addLaunchVscodeEditorTask(project: Project) {
         project.tasks.create("launchVscodeEditor").apply {
-            this.group = "language server";
-            this.description = "Launch the configured vscode editor with the language server installed (defaults to code)";
-            this.actions = listOf(Action { _ ->
-                try {
-                    ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/extension", "${project.projectDir}/examples").start().waitFor()
-                } catch (exception: Exception) {
-                    System.err.println(exception.message)
+            this.group = "language server"
+            this.description = "Launch the configured vscode editor with the language server installed (defaults to code)"
+            this.actions = listOf(
+                Action { _ ->
+                    try {
+                        ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/extension", "${project.projectDir}/examples").start().waitFor()
+                    } catch (exception: Exception) {
+                        System.err.println(exception.message)
+                    }
                 }
-            })
+            )
             this.dependsOn(project.tasks.getByName("createVscodeExtension"))
-        };
+        }
     }
 
     private fun addCreateVscodeExtensionTask(project: Project) {
         project.tasks.create("createVscodeExtension").apply {
-            this.group = "language server";
-            this.description = "Create language server extension folder for vscode under build/extension";
-            this.actions = listOf(Action { _ ->
-                try {
-                    val name = extension.language
-                    Files.createDirectories(Paths.get("build", "extension"))
-                    Files.writeString(Paths.get("build", "extension", "package.json"), """
+            this.group = "language server"
+            this.description = "Create language server extension folder for vscode under build/extension"
+            this.actions = listOf(
+                Action { _ ->
+                    try {
+                        val name = extension.language
+                        Files.createDirectories(Paths.get("build", "extension"))
+                        Files.writeString(
+                            Paths.get("build", "extension", "package.json"),
+                            """
                         {
                             "name": "${name.lowercase(Locale.getDefault())}",
                             "version": "0.0.0",
@@ -74,8 +79,11 @@ class LanguageServerPlugin : Plugin<Project?> {
                             "activationEvents": ["onLanguage:$name"],
                             "main": "client.js"
                         }
-                        """.trimIndent())
-                    Files.writeString(Paths.get("build", "extension", "client.js"), """
+                            """.trimIndent()
+                        )
+                        Files.writeString(
+                            Paths.get("build", "extension", "client.js"),
+                            """
                         let {LanguageClient} = require("../node_modules/vscode-languageclient/node");
     
                         async function activate (context)
@@ -89,20 +97,21 @@ class LanguageServerPlugin : Plugin<Project?> {
                         }
     
                         module.exports = {activate};
-                    """.trimIndent())
+                            """.trimIndent()
+                        )
 
-                    if (extension.shadowJarName == "")
-                    {
-                        extension.shadowJarName = project.name
+                        if (extension.shadowJarName == "") {
+                            extension.shadowJarName = project.name
+                        }
+                        Files.copy(Paths.get("build", "libs", extension.shadowJarName + ".jar"), Paths.get("build", "extension", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
+
+                        ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").start().waitFor()
+                        ProcessBuilder("npx", "esbuild", "build/extension/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/extension/client.js", "--allow-overwrite").start().waitFor()
+                    } catch (exception: Exception) {
+                        System.err.println(exception.message)
                     }
-                    Files.copy(Paths.get("build", "libs", extension.shadowJarName+".jar"), Paths.get("build", "extension", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
-
-                    ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").start().waitFor()
-                    ProcessBuilder("npx", "esbuild", "build/extension/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/extension/client.js", "--allow-overwrite").start().waitFor()
-                } catch (exception: Exception) {
-                    System.err.println(exception.message)
                 }
-            })
+            )
             this.dependsOn.add(project.tasks.getByName("shadowJar"))
         }
     }
