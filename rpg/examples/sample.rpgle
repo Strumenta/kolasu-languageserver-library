@@ -5,6 +5,11 @@
      D A               S              8  0 INZ(0)
      D B               S              8  0 INZ(1)
      D DSP             S             50
+     D Partno          DS
+     D Manufactr                      4
+     D Drug                           6
+     D Strength                       3
+     D Count                          3  0
      FLOGFILE   Up   E             Disk
      FPHYFILE2  Up   E             Disk
       *--------------------------------------------------------------*
