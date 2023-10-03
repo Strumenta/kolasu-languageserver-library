@@ -1,3 +1,6 @@
 [submodule "examples/rpg"]
 	path = examples/rpg
 	url = git@github.com:Strumenta/kolasu-rpg-languageserver
+[submodule "examples/entity"]
+	path = examples/entity
+	url = git@github.com:Strumenta/kolasu-entity-languageserver
