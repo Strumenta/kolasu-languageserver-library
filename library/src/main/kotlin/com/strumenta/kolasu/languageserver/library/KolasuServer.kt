@@ -2,6 +2,7 @@ package com.strumenta.kolasu.languageserver.library
 
 import com.strumenta.kolasu.model.Named
 import com.strumenta.kolasu.model.Node
+import com.strumenta.kolasu.model.PossiblyNamed
 import com.strumenta.kolasu.model.children
 import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
@@ -130,7 +131,7 @@ class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val inclu
 
     private fun appendNamedChildren(node: Node, parent: DocumentSymbol) {
         var nextParent = parent
-        if (node is Named) {
+        if (node is PossiblyNamed && node.name != null) {
             node.position?.let {
                 val range = toLSPRange(it)
                 val symbol = DocumentSymbol(node.name, SymbolKind.Variable, range, range, "", mutableListOf())
