@@ -6,6 +6,7 @@ import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
 import com.strumenta.kolasu.model.ReferenceByName
 import com.strumenta.kolasu.model.children
+import com.strumenta.kolasu.model.startLine
 import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
@@ -28,13 +29,18 @@ import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.ReferenceParams
+import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
 import org.eclipse.lsp4j.SymbolInformation
 import org.eclipse.lsp4j.SymbolKind
+import org.eclipse.lsp4j.TextDocumentEdit
 import org.eclipse.lsp4j.TextDocumentPositionParams
 import org.eclipse.lsp4j.TextDocumentSyncKind
 import org.eclipse.lsp4j.TextDocumentSyncOptions
+import org.eclipse.lsp4j.TextEdit
+import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
+import org.eclipse.lsp4j.WorkspaceEdit
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.LanguageClient
@@ -80,6 +86,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         capabilities.setDocumentSymbolProvider(true)
         capabilities.setDefinitionProvider(true)
         capabilities.setReferencesProvider(true)
+        capabilities.setRenameProvider(true)
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
@@ -183,6 +190,20 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         val locations = symbol.references.map { toLSPLocation(it.position!!, params!!.textDocument.uri) }.toMutableList()
 
         return CompletableFuture.completedFuture(locations)
+    }
+
+    override fun rename(params: RenameParams?): CompletableFuture<WorkspaceEdit> {
+        val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
+
+        val symbol = symbols.find { it.definition.name == node.sourceText } ?: return CompletableFuture.completedFuture(null)
+        val edits = mutableListOf<TextEdit>()
+        for (reference in symbol.references) {
+            edits.add(TextEdit(toLSPRange(reference.position!!), params!!.newName))
+        }
+        edits.reverse()
+        val textEdits = TextDocumentEdit(VersionedTextDocumentIdentifier(params!!.textDocument.uri, 0), edits)
+        val edit = WorkspaceEdit(listOf(Either.forLeft(textEdits)))
+        return CompletableFuture.completedFuture(edit)
     }
 
     private fun getNode(params: TextDocumentPositionParams?): Node? {
