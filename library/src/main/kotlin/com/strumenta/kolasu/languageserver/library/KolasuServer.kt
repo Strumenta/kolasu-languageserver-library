@@ -1,30 +1,13 @@
 package com.strumenta.kolasu.languageserver.library
 
 import com.strumenta.kolasu.model.Node
+import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
 import com.strumenta.kolasu.model.children
 import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
-import org.eclipse.lsp4j.Diagnostic
-import org.eclipse.lsp4j.DidChangeConfigurationParams
-import org.eclipse.lsp4j.DidChangeTextDocumentParams
-import org.eclipse.lsp4j.DidChangeWatchedFilesParams
-import org.eclipse.lsp4j.DidCloseTextDocumentParams
-import org.eclipse.lsp4j.DidOpenTextDocumentParams
-import org.eclipse.lsp4j.DidSaveTextDocumentParams
-import org.eclipse.lsp4j.DocumentSymbol
-import org.eclipse.lsp4j.DocumentSymbolParams
-import org.eclipse.lsp4j.InitializeParams
-import org.eclipse.lsp4j.InitializeResult
-import org.eclipse.lsp4j.Position
-import org.eclipse.lsp4j.PublishDiagnosticsParams
-import org.eclipse.lsp4j.Range
-import org.eclipse.lsp4j.ServerCapabilities
-import org.eclipse.lsp4j.SetTraceParams
-import org.eclipse.lsp4j.SymbolInformation
-import org.eclipse.lsp4j.SymbolKind
-import org.eclipse.lsp4j.TextDocumentSyncKind
-import org.eclipse.lsp4j.TextDocumentSyncOptions
+import com.strumenta.kolasu.traversing.findByPosition
+import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.LanguageClient
@@ -63,14 +46,8 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         val capabilities = ServerCapabilities()
         capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
         capabilities.setDocumentSymbolProvider(true)
+        capabilities.setDefinitionProvider(true)
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
-    }
-
-    override fun shutdown(): CompletableFuture<Any> {
-        return CompletableFuture.completedFuture(null)
-    }
-
-    override fun exit() {
     }
 
     override fun didOpen(params: DidOpenTextDocumentParams?) {
@@ -99,21 +76,6 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
             }
         }
         client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
-    }
-
-    override fun didClose(params: DidCloseTextDocumentParams?) {
-    }
-
-    override fun didSave(params: DidSaveTextDocumentParams?) {
-    }
-
-    override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
-    }
-
-    override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
-    }
-
-    override fun setTrace(params: SetTraceParams?) {
     }
 
     override fun documentSymbol(params: DocumentSymbolParams?): CompletableFuture<MutableList<Either<SymbolInformation, DocumentSymbol>>> {
@@ -147,9 +109,52 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         return SymbolKind.Variable
     }
 
+    override fun definition(params: DefinitionParams?): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
+        if (params == null) return CompletableFuture.completedFuture(null)
+        val uri = params.textDocument.uri ?: return CompletableFuture.completedFuture(null)
+        val parsingResult = uriToParsingResult[uri] ?: return CompletableFuture.completedFuture(null)
+        val root = parsingResult.root ?: return CompletableFuture.completedFuture(null)
+
+        val position = toKolasuRange(params.position)
+        val node = root.findByPosition(position) ?: return CompletableFuture.completedFuture(null)
+
+        for (field in node.javaClass.declaredFields) {
+            client.showMessage(MessageParams(MessageType.Info, field.toString()))
+        }
+        return CompletableFuture.completedFuture(null)
+    }
+
     private fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
         val start = Position(kolasuRange.start.line - 1, kolasuRange.start.column)
         val end = Position(kolasuRange.end.line - 1, kolasuRange.end.column)
         return Range(start, end)
+    }
+
+    private fun toKolasuRange(position: Position): com.strumenta.kolasu.model.Position {
+        val start = Point(position.line + 1, position.character)
+        val end = Point(position.line + 1, position.character)
+        return com.strumenta.kolasu.model.Position(start, end)
+    }
+
+    override fun didClose(params: DidCloseTextDocumentParams?) {
+    }
+
+    override fun didSave(params: DidSaveTextDocumentParams?) {
+    }
+
+    override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
+    }
+
+    override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
+    }
+
+    override fun setTrace(params: SetTraceParams?) {
+    }
+
+    override fun shutdown(): CompletableFuture<Any> {
+        return CompletableFuture.completedFuture(null)
+    }
+
+    override fun exit() {
     }
 }
