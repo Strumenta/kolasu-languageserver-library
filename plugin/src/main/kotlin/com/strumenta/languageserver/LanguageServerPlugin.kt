@@ -1,8 +1,10 @@
 package com.strumenta.languageserver
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformJvmPlugin
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
@@ -22,6 +24,9 @@ class LanguageServerPlugin : Plugin<Project?> {
 
     override fun apply(project: Project?) {
         if (project == null) return
+
+        project.pluginManager.apply(ShadowPlugin::class.java)
+        project.pluginManager.apply(KotlinPlatformJvmPlugin::class.java)
 
         project.repositories.add(project.repositories.mavenCentral())
         project.repositories.add(project.repositories.mavenLocal())
@@ -85,19 +90,19 @@ class LanguageServerPlugin : Plugin<Project?> {
                         Files.writeString(
                             Paths.get("build", "extension", "client.js"),
                             """
-                        let {LanguageClient} = require("../node_modules/vscode-languageclient/node");
-
-                        async function activate (context)
-                        {
-                            let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar")]}};
-
-                            let languageClient = new LanguageClient("$name", "$name language server", productionServer, {documentSelector: ["$name"]});
-                            await languageClient.start();
-
-                            context.subscriptions.push(languageClient);
-                        }
-
-                        module.exports = {activate};
+                            let {LanguageClient} = require("../node_modules/vscode-languageclient/node");
+    
+                            async function activate (context)
+                            {
+                                let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar")]}};
+    
+                                let languageClient = new LanguageClient("$name", "$name language server", productionServer, {documentSelector: ["$name"]});
+                                await languageClient.start();
+    
+                                context.subscriptions.push(languageClient);
+                            }
+    
+                            module.exports = {activate};
                             """.trimIndent()
                         )
 
