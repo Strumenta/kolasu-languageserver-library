@@ -11,6 +11,7 @@ repositories {
 dependencies {
     implementation("com.strumenta.kolasu:kolasu-core:1.5.31")
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
+    implementation("org.jetbrains.kotlin:kotlin-reflect:1.5.21")
 }
 
 group = "com.strumenta"

@@ -3,11 +3,37 @@ package com.strumenta.kolasu.languageserver.library
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
+import com.strumenta.kolasu.model.ReferenceByName
 import com.strumenta.kolasu.model.children
 import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
-import org.eclipse.lsp4j.*
+import com.strumenta.kolasu.traversing.walk
+import org.eclipse.lsp4j.DefinitionParams
+import org.eclipse.lsp4j.Diagnostic
+import org.eclipse.lsp4j.DidChangeConfigurationParams
+import org.eclipse.lsp4j.DidChangeTextDocumentParams
+import org.eclipse.lsp4j.DidChangeWatchedFilesParams
+import org.eclipse.lsp4j.DidCloseTextDocumentParams
+import org.eclipse.lsp4j.DidOpenTextDocumentParams
+import org.eclipse.lsp4j.DidSaveTextDocumentParams
+import org.eclipse.lsp4j.DocumentSymbol
+import org.eclipse.lsp4j.DocumentSymbolParams
+import org.eclipse.lsp4j.InitializeParams
+import org.eclipse.lsp4j.InitializeResult
+import org.eclipse.lsp4j.Location
+import org.eclipse.lsp4j.LocationLink
+import org.eclipse.lsp4j.MessageParams
+import org.eclipse.lsp4j.MessageType
+import org.eclipse.lsp4j.Position
+import org.eclipse.lsp4j.PublishDiagnosticsParams
+import org.eclipse.lsp4j.Range
+import org.eclipse.lsp4j.ServerCapabilities
+import org.eclipse.lsp4j.SetTraceParams
+import org.eclipse.lsp4j.SymbolInformation
+import org.eclipse.lsp4j.SymbolKind
+import org.eclipse.lsp4j.TextDocumentSyncKind
+import org.eclipse.lsp4j.TextDocumentSyncOptions
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.LanguageClient
@@ -18,11 +44,16 @@ import org.eclipse.lsp4j.services.WorkspaceService
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.CompletableFuture
+import kotlin.reflect.full.declaredMemberProperties
+import kotlin.reflect.full.isSubtypeOf
+import kotlin.reflect.jvm.javaField
+import kotlin.reflect.typeOf
 
 open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected lateinit var client: LanguageClient
     protected val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
+    public val symbols: MutableList<Symbol> = mutableListOf()
 
     fun startCommunication(inputStream: InputStream = System.`in`, outputStream: OutputStream = System.out) {
         val launcher = LSPLauncher.createServerLauncher(this, inputStream, outputStream)
@@ -65,6 +96,9 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
     private fun parseAndPublishDiagnostics(text: String, uri: String) {
         val parsingResult = parser.parse(text)
+        parsingResult.root?.let {
+            resolveSymbols(it)
+        }
         uriToParsingResult[uri] = parsingResult
 
         val diagnostics = ArrayList<Diagnostic>()
@@ -76,6 +110,26 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
             }
         }
         client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
+    }
+
+    private fun resolveSymbols(tree: Node) {
+        symbols.clear()
+        tree.walk().forEach { node ->
+            if (node is PossiblyNamed && node.name != null) {
+                symbols.add(Symbol(node, mutableListOf(node)))
+            }
+        }
+        tree.walk().forEach { node ->
+            val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
+            referenceField?.javaField?.let { field ->
+                field.isAccessible = true
+                val value = field.get(node) as ReferenceByName<*>
+                val name = value.name
+                val symbol = symbols.find { symbol -> symbol.definition.name == name }
+                symbol?.references?.add(node)
+                println(value.name)
+            }
+        }
     }
 
     override fun documentSymbol(params: DocumentSymbolParams?): CompletableFuture<MutableList<Either<SymbolInformation, DocumentSymbol>>> {
@@ -158,3 +212,5 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     override fun exit() {
     }
 }
+
+data class Symbol(val definition: PossiblyNamed, val references: MutableList<Node>)
