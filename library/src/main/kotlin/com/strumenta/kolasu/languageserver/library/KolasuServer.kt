@@ -1,5 +1,6 @@
 package com.strumenta.kolasu.languageserver.library
 
+import com.strumenta.kolasu.model.FileSource
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
@@ -23,8 +24,6 @@ import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
-import org.eclipse.lsp4j.MessageParams
-import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
@@ -33,6 +32,7 @@ import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
 import org.eclipse.lsp4j.SymbolInformation
 import org.eclipse.lsp4j.SymbolKind
+import org.eclipse.lsp4j.TextDocumentPositionParams
 import org.eclipse.lsp4j.TextDocumentSyncKind
 import org.eclipse.lsp4j.TextDocumentSyncOptions
 import org.eclipse.lsp4j.jsonrpc.messages.Either
@@ -165,46 +165,47 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     }
 
     override fun definition(params: DefinitionParams?): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
-        if (params == null) return CompletableFuture.completedFuture(null)
-        val uri = params.textDocument.uri ?: return CompletableFuture.completedFuture(null)
-        val parsingResult = uriToParsingResult[uri] ?: return CompletableFuture.completedFuture(null)
-        val root = parsingResult.root ?: return CompletableFuture.completedFuture(null)
+        val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
 
-        val position = toKolasuRange(params.position)
-        val node = root.findByPosition(position) ?: return CompletableFuture.completedFuture(null)
-        if (node is ReferenceByName<*>) {
+        val field = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }?.javaField ?: return CompletableFuture.completedFuture(null)
+        val value = field.get(node) as ReferenceByName<*>
+        val symbol = symbols.find { it.definition.name == value.name }
+        val definition = symbol?.definition as? Node
+        val definitionPosition = definition?.position ?: return CompletableFuture.completedFuture(null)
 
-        }
-        val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
-        referenceField?.javaField?.let { field ->
-            val value = field.get(node) as ReferenceByName<*>
-            val symbol = symbols.find { it.definition.name == value.name }
-            val definition = symbol?.definition as Node
-            definition.position?.let {
-                return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(Location(uri, toLSPRange(it)))))
-            }
-        }
-        return CompletableFuture.completedFuture(null)
+        return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(toLSPLocation(definitionPosition, params!!.textDocument.uri))))
     }
 
     override fun references(params: ReferenceParams?): CompletableFuture<MutableList<out Location>> {
-        if (params == null) return CompletableFuture.completedFuture(null)
-        val uri = params.textDocument.uri ?: return CompletableFuture.completedFuture(null)
-        val parsingResult = uriToParsingResult[uri] ?: return CompletableFuture.completedFuture(null)
-        val root = parsingResult.root ?: return CompletableFuture.completedFuture(null)
+        val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
 
-        val position = toKolasuRange(params.position)
-        val node = root.findByPosition(position) ?: return CompletableFuture.completedFuture(null)
         val symbol = symbols.find { it.definition.name == node.sourceText } ?: return CompletableFuture.completedFuture(null)
-        val locations = symbol.references.map { Location(uri, toLSPRange(it.position!!)) }.toMutableList()
+        val locations = symbol.references.map { toLSPLocation(it.position!!, params!!.textDocument.uri) }.toMutableList()
 
         return CompletableFuture.completedFuture(locations)
+    }
+
+    private fun getNode(params: TextDocumentPositionParams?): Node? {
+        if (params == null) return null
+        val ast = uriToParsingResult[params.textDocument.uri] ?: return null
+        val root = ast.root ?: return null
+        return root.findByPosition(toKolasuRange(params.position))
     }
 
     private fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
         val start = Position(kolasuRange.start.line - 1, kolasuRange.start.column)
         val end = Position(kolasuRange.end.line - 1, kolasuRange.end.column)
         return Range(start, end)
+    }
+
+    private fun toLSPLocation(position: com.strumenta.kolasu.model.Position, uri: String): Location {
+        val range = toLSPRange(position)
+        val source = position.source
+        if (source is FileSource) {
+            return Location(source.file.toURI().toString(), range)
+        } else {
+            return Location(uri, range)
+        }
     }
 
     private fun toKolasuRange(position: Position): com.strumenta.kolasu.model.Position {
