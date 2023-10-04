@@ -23,9 +23,12 @@ import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
+import org.eclipse.lsp4j.MessageParams
+import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
+import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
 import org.eclipse.lsp4j.SymbolInformation
@@ -51,7 +54,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
     protected lateinit var client: LanguageClient
     protected val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
-    public val symbols: MutableList<Symbol> = mutableListOf()
+    protected val symbols: MutableList<Symbol> = mutableListOf()
 
     fun startCommunication(inputStream: InputStream = System.`in`, outputStream: OutputStream = System.out) {
         val launcher = LSPLauncher.createServerLauncher(this, inputStream, outputStream)
@@ -76,6 +79,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
         capabilities.setDocumentSymbolProvider(true)
         capabilities.setDefinitionProvider(true)
+        capabilities.setReferencesProvider(true)
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
@@ -168,6 +172,9 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
         val position = toKolasuRange(params.position)
         val node = root.findByPosition(position) ?: return CompletableFuture.completedFuture(null)
+        if (node is ReferenceByName<*>) {
+
+        }
         val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
         referenceField?.javaField?.let { field ->
             val value = field.get(node) as ReferenceByName<*>
@@ -178,6 +185,20 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
             }
         }
         return CompletableFuture.completedFuture(null)
+    }
+
+    override fun references(params: ReferenceParams?): CompletableFuture<MutableList<out Location>> {
+        if (params == null) return CompletableFuture.completedFuture(null)
+        val uri = params.textDocument.uri ?: return CompletableFuture.completedFuture(null)
+        val parsingResult = uriToParsingResult[uri] ?: return CompletableFuture.completedFuture(null)
+        val root = parsingResult.root ?: return CompletableFuture.completedFuture(null)
+
+        val position = toKolasuRange(params.position)
+        val node = root.findByPosition(position) ?: return CompletableFuture.completedFuture(null)
+        val symbol = symbols.find { it.definition.name == node.sourceText } ?: return CompletableFuture.completedFuture(null)
+        val locations = symbol.references.map { Location(uri, toLSPRange(it.position!!)) }.toMutableList()
+
+        return CompletableFuture.completedFuture(locations)
     }
 
     private fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
