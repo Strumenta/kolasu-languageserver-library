@@ -31,6 +31,9 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.repositories.add(project.repositories.mavenCentral())
         project.repositories.add(project.repositories.mavenLocal())
 
+        if (project.rootProject.subprojects.find { it.name == "ast" } != null) {
+            project.dependencies.add("implementation", project.dependencies.project(mapOf("path" to ":ast")))
+        }
         project.dependencies.add("implementation", "com.strumenta:language-server:0.0.0")
         project.dependencies.add("implementation", "com.strumenta.kolasu:kolasu-core:1.5.31")
         project.dependencies.add("implementation", "org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
