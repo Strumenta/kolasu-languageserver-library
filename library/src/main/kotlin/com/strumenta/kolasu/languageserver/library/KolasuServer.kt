@@ -125,7 +125,6 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
                 val name = value.name
                 val symbol = symbols.find { symbol -> symbol.definition.name == name }
                 symbol?.references?.add(node)
-                println(value.name)
             }
         }
     }
