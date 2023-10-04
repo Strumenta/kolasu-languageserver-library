@@ -23,8 +23,6 @@ import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
-import org.eclipse.lsp4j.MessageParams
-import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
@@ -171,9 +169,14 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
         val position = toKolasuRange(params.position)
         val node = root.findByPosition(position) ?: return CompletableFuture.completedFuture(null)
-
-        for (field in node.javaClass.declaredFields) {
-            client.showMessage(MessageParams(MessageType.Info, field.toString()))
+        val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
+        referenceField?.javaField?.let { field ->
+            val value = field.get(node) as ReferenceByName<*>
+            val symbol = symbols.find { it.definition.name == value.name }
+            val definition = symbol?.definition as Node
+            definition.position?.let {
+                return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(Location(uri, toLSPRange(it)))))
+            }
         }
         return CompletableFuture.completedFuture(null)
     }
