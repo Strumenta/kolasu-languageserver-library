@@ -16,6 +16,8 @@ open class LanguageServerExtension {
     var fileExtensions: List<String> = listOf("extension")
     var shadowJarName: String = ""
     var examples: String = "examples"
+    var textmateGrammar: String = "grammar.tmLanguage"
+    var textmateGrammarScope: String = "scope.main"
 }
 
 class LanguageServerPlugin : Plugin<Project?> {
@@ -71,6 +73,17 @@ class LanguageServerPlugin : Plugin<Project?> {
                     try {
                         val name = extension.language
                         Files.createDirectories(Paths.get("build", "extension"))
+                        var grammars = ""
+                        if (Files.exists(Paths.get("src", "main", "resources", extension.textmateGrammar))) {
+                            grammars = """
+                            ,
+                            "grammars":
+                            [
+                                {"language": "$name", "scopeName": "${extension.textmateGrammarScope}", "path": "./grammar.tmLanguage"}
+                            ]
+                            """.trimIndent()
+                            Files.copy(Paths.get("src", "main", "resources", extension.textmateGrammar), Paths.get("build", "extension", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
+                        }
                         Files.writeString(
                             Paths.get("build", "extension", "package.json"),
                             """
@@ -82,7 +95,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                                     "languages":
                                     [
                                         {"id": "$name", "extensions": ["${extension.fileExtensions.joinToString("\", \"")}"]}
-                                    ]
+                                    ]$grammars
                                 },
                                 "engines": {"vscode": "^1.52.0"},
                                 "activationEvents": ["onLanguage:$name"],
