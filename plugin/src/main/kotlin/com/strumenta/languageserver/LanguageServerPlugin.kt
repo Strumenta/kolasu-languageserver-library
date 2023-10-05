@@ -39,6 +39,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.dependencies.add("implementation", "com.strumenta:language-server:0.0.0")
         project.dependencies.add("implementation", "com.strumenta.kolasu:kolasu-core:1.5.31")
         project.dependencies.add("implementation", "org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
+        project.dependencies.add("testImplementation", "org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
 
         addCreateVscodeExtensionTask(project)
         addLaunchVscodeEditorTask(project)
