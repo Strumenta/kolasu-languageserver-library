@@ -25,6 +25,8 @@ import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
+import org.eclipse.lsp4j.MessageParams
+import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
@@ -60,7 +62,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
     protected lateinit var client: LanguageClient
     protected val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
-    protected val symbols: MutableList<Symbol> = mutableListOf()
+    protected val symbols: MutableMap<String, Symbol> = mutableMapOf()
 
     fun startCommunication(inputStream: InputStream = System.`in`, outputStream: OutputStream = System.out) {
         val launcher = LSPLauncher.createServerLauncher(this, inputStream, outputStream)
@@ -124,8 +126,10 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     private fun resolveSymbols(tree: Node) {
         symbols.clear()
         tree.walk().forEach { node ->
-            if (node is PossiblyNamed && node.name != null) {
-                symbols.add(Symbol(node, mutableListOf(node)))
+            if (node is PossiblyNamed) {
+                node.name?.let {
+                    symbols.put(it, Symbol(node, mutableListOf(node)))
+                }
             }
         }
         tree.walk().forEach { node ->
@@ -134,7 +138,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
                 field.isAccessible = true
                 val value = field.get(node) as ReferenceByName<*>
                 val name = value.name
-                val symbol = symbols.find { symbol -> symbol.definition.name == name }
+                val symbol = symbols[name]
                 symbol?.references?.add(node)
             }
         }
@@ -176,9 +180,9 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
         val field = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }?.javaField ?: return CompletableFuture.completedFuture(null)
         val value = field.get(node) as ReferenceByName<*>
-        val symbol = symbols.find { it.definition.name == value.name }
-        val definition = symbol?.definition as? Node
-        val definitionPosition = definition?.position ?: return CompletableFuture.completedFuture(null)
+        val symbol = symbols[value.name] ?: return CompletableFuture.completedFuture(null)
+        val definition = symbol.definition as Node
+        val definitionPosition = definition.position ?: return CompletableFuture.completedFuture(null)
 
         return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(toLSPLocation(definitionPosition, params!!.textDocument.uri))))
     }
@@ -186,7 +190,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     override fun references(params: ReferenceParams?): CompletableFuture<MutableList<out Location>> {
         val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
 
-        val symbol = symbols.find { it.definition.name == node.sourceText } ?: return CompletableFuture.completedFuture(null)
+        val symbol = symbols[node.sourceText] ?: return CompletableFuture.completedFuture(null)
         val locations = symbol.references.map { toLSPLocation(it.position!!, params!!.textDocument.uri) }.toMutableList()
 
         return CompletableFuture.completedFuture(locations)
@@ -195,15 +199,16 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     override fun rename(params: RenameParams?): CompletableFuture<WorkspaceEdit> {
         val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
 
-        val symbol = symbols.find { it.definition.name == node.sourceText } ?: return CompletableFuture.completedFuture(null)
-        val edits = mutableListOf<TextEdit>()
-        for (reference in symbol.references) {
-            edits.add(TextEdit(toLSPRange(reference.position!!), params!!.newName))
-        }
+        val symbol = symbols[node.sourceText] ?: return CompletableFuture.completedFuture(null)
+        val edits = symbol.references.map { rename(it, params!!.newName) }.toMutableList()
         edits.reverse()
+
         val textEdits = TextDocumentEdit(VersionedTextDocumentIdentifier(params!!.textDocument.uri, 0), edits)
-        val edit = WorkspaceEdit(listOf(Either.forLeft(textEdits)))
-        return CompletableFuture.completedFuture(edit)
+        return CompletableFuture.completedFuture(WorkspaceEdit(listOf(Either.forLeft(textEdits))))
+    }
+
+    protected open fun rename(node: Node, newName: String): TextEdit {
+        return TextEdit(toLSPRange(node.position!!), newName)
     }
 
     private fun getNode(params: TextDocumentPositionParams?): Node? {
@@ -213,13 +218,13 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         return root.findByPosition(toKolasuRange(params.position))
     }
 
-    private fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
+    protected fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
         val start = Position(kolasuRange.start.line - 1, kolasuRange.start.column)
         val end = Position(kolasuRange.end.line - 1, kolasuRange.end.column)
         return Range(start, end)
     }
 
-    private fun toLSPLocation(position: com.strumenta.kolasu.model.Position, uri: String): Location {
+    protected fun toLSPLocation(position: com.strumenta.kolasu.model.Position, uri: String): Location {
         val range = toLSPRange(position)
         val source = position.source
         if (source is FileSource) {
@@ -229,7 +234,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         }
     }
 
-    private fun toKolasuRange(position: Position): com.strumenta.kolasu.model.Position {
+    protected fun toKolasuRange(position: Position): com.strumenta.kolasu.model.Position {
         val start = Point(position.line + 1, position.character)
         val end = Point(position.line + 1, position.character)
         return com.strumenta.kolasu.model.Position(start, end)
