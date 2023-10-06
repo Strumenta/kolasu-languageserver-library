@@ -5,8 +5,10 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.configurationcache.extensions.capitalized
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformJvmPlugin
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.util.*
@@ -56,8 +58,41 @@ class LanguageServerPlugin : Plugin<Project?> {
         extension.shadowJarName = language
         extension.examples = project.rootDir.absolutePath + "/examples"
 
+        addCreateEntryPointTask(project)
         addCreateVscodeExtensionTask(project)
         addLaunchVscodeEditorTask(project)
+    }
+
+    private fun addCreateEntryPointTask(project: Project) {
+        project.tasks.create("createEntryPoint").apply {
+            this.group = "language server"
+            this.description = "Create an entrypoint under src/main/kotlin that starts communication with a kolasu server"
+            this.actions = listOf(Action { _ -> try { createEntryPoint(project) } catch (exception: Exception) { System.err.println(exception.message) } })
+        }
+    }
+
+    private fun createEntryPoint(project: Project) {
+        val root = project.projectDir.toString()
+        val language = extension.language
+
+        if (Files.exists(Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver", "Main.kt"))) {
+            return
+        }
+        Files.createDirectories(Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver"))
+        Files.writeString(
+            Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver", "Main.kt"),
+            """
+            package com.strumenta.$language.languageserver
+            
+            import com.strumenta.$language.parser.${language.capitalized()}KolasuParser
+            import com.strumenta.kolasu.languageserver.library.KolasuServer
+            
+            fun main() {
+                val parser = ${language.capitalized()}KolasuParser()
+                val server = KolasuServer(parser)
+                server.startCommunication()
+            }
+            """.trimIndent())
     }
 
     private fun addLaunchVscodeEditorTask(project: Project) {
