@@ -62,17 +62,8 @@ class LanguageServerPlugin : Plugin<Project?> {
         extension.logoPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "logo.png")
         extension.fileIconPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "fileIcon.png")
 
-        addCreateEntryPointTask(project)
         addCreateVscodeExtensionTask(project)
         addLaunchVscodeEditorTask(project)
-    }
-
-    private fun addCreateEntryPointTask(project: Project) {
-        project.tasks.create("createEntryPoint").apply {
-            this.group = "language server"
-            this.description = "Create an entrypoint under src/main/kotlin that starts communication with a kolasu server"
-            this.actions = listOf(Action { _ -> try { createEntryPoint(project) } catch (exception: Exception) { System.err.println(exception.message) } })
-        }
     }
 
     private fun createEntryPoint(project: Project) {
@@ -125,6 +116,15 @@ class LanguageServerPlugin : Plugin<Project?> {
     private fun createVscodeExtension(project: Project) {
         val root = project.projectDir.toString()
         val name = extension.language
+
+        val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
+        val entryPoint = shadowJar.manifest.attributes["Main-Class"] as String
+        if (entryPoint == "com.strumenta.$name.languageserver.MainKt") {
+            if (!Files.exists(Paths.get(root, "src", "main", "kotlin", "com", "strumenta", name, "languageserver", "Main.kt"))) {
+                createEntryPoint(project)
+            }
+        }
+
         Files.createDirectories(Paths.get(root, "build", "vscode"))
 
         var grammars = ""
