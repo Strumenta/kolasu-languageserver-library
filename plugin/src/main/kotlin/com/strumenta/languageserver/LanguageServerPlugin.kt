@@ -8,7 +8,6 @@ import org.gradle.api.Project
 import org.gradle.configurationcache.extensions.capitalized
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformJvmPlugin
 import java.nio.file.Files
-import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.util.*
@@ -83,16 +82,17 @@ class LanguageServerPlugin : Plugin<Project?> {
             Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver", "Main.kt"),
             """
             package com.strumenta.$language.languageserver
-            
+
             import com.strumenta.$language.parser.${language.capitalized()}KolasuParser
             import com.strumenta.kolasu.languageserver.library.KolasuServer
-            
+
             fun main() {
                 val parser = ${language.capitalized()}KolasuParser()
                 val server = KolasuServer(parser)
                 server.startCommunication()
             }
-            """.trimIndent())
+            """.trimIndent()
+        )
     }
 
     private fun addLaunchVscodeEditorTask(project: Project) {
@@ -105,13 +105,13 @@ class LanguageServerPlugin : Plugin<Project?> {
     }
 
     private fun launchVscodeEditor(project: Project) {
-        ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/extension", extension.examples).directory(project.projectDir).start().waitFor()
+        ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/vscode", extension.examples).directory(project.projectDir).start().waitFor()
     }
 
     private fun addCreateVscodeExtensionTask(project: Project) {
         project.tasks.create("createVscodeExtension").apply {
             this.group = "language server"
-            this.description = "Create language server extension folder for vscode under build/extension"
+            this.description = "Create language server extension folder for vscode under build/vscode"
             this.actions = listOf(Action { _ -> try { createVscodeExtension(project) } catch (exception: Exception) { System.err.println(exception.message) } })
             this.dependsOn.add(project.tasks.getByName("shadowJar"))
         }
@@ -120,7 +120,7 @@ class LanguageServerPlugin : Plugin<Project?> {
     private fun createVscodeExtension(project: Project) {
         val root = project.projectDir.toString()
         val name = extension.language
-        Files.createDirectories(Paths.get(root, "build", "extension"))
+        Files.createDirectories(Paths.get(root, "build", "vscode"))
         var grammars = ""
         if (Files.exists(Paths.get(root, "src", "main", "resources", extension.textmateGrammar))) {
             grammars = """
@@ -130,14 +130,15 @@ class LanguageServerPlugin : Plugin<Project?> {
                 {"language": "$name", "scopeName": "${extension.textmateGrammarScope}", "path": "./grammar.tmLanguage"}
             ]
             """.trimIndent()
-            Files.copy(Paths.get(root, "src", "main", "resources", extension.textmateGrammar), Paths.get(root, "build", "extension", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(Paths.get(root, "src", "main", "resources", extension.textmateGrammar), Paths.get(root, "build", "vscode", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
         }
         Files.writeString(
-            Paths.get(root, "build", "extension", "package.json"),
+            Paths.get(root, "build", "vscode", "package.json"),
             """
         {
             "name": "${name.lowercase(Locale.getDefault())}",
             "version": "0.0.0",
+            "publisher": "strumenta",
             "contributes":
             {
                 "languages":
@@ -153,7 +154,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         )
 
         Files.writeString(
-            Paths.get(root, "build", "extension", "client.js"),
+            Paths.get(root, "build", "vscode", "client.js"),
             """
         let {LanguageClient} = require("../node_modules/vscode-languageclient/node");
 
@@ -171,9 +172,14 @@ class LanguageServerPlugin : Plugin<Project?> {
             """.trimIndent()
         )
 
-        Files.copy(Paths.get(root, "build", "libs", extension.shadowJarName + ".jar"), Paths.get(root, "build", "extension", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(Paths.get(root, "build", "libs", extension.shadowJarName + ".jar"), Paths.get(root, "build", "vscode", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
 
         ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").directory(project.projectDir).start().waitFor()
-        ProcessBuilder("npx", "esbuild", "build/extension/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/extension/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
+        ProcessBuilder("npx", "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
+
+        if (!Files.exists(Paths.get(project.projectDir.toString(), "build", "vscode", "LICENSE.md"))) {
+            Files.writeString(Paths.get(project.projectDir.toString(), "build", "vscode", "LICENSE.md"), "Copyright Strumenta SRL")
+        }
+        ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(Paths.get(project.projectDir.toString(), "build", "vscode").toFile()).redirectErrorStream(true).start()
     }
 }
