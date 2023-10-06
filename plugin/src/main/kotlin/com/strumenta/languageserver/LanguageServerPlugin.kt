@@ -8,6 +8,7 @@ import org.gradle.api.Project
 import org.gradle.configurationcache.extensions.capitalized
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformJvmPlugin
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.util.*
@@ -20,6 +21,7 @@ open class LanguageServerExtension {
     var examples: String = "examples"
     var textmateGrammar: String = "grammar.tmLanguage"
     var textmateGrammarScope: String = "scope.main"
+    var logoPath: Path = Paths.get("logo.png")
 }
 
 class LanguageServerPlugin : Plugin<Project?> {
@@ -56,6 +58,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         extension.editor = "code"
         extension.shadowJarName = language
         extension.examples = project.rootDir.absolutePath + "/examples"
+        extension.logoPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "logo.png")
 
         addCreateEntryPointTask(project)
         addCreateVscodeExtensionTask(project)
@@ -121,6 +124,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         val root = project.projectDir.toString()
         val name = extension.language
         Files.createDirectories(Paths.get(root, "build", "vscode"))
+
         var grammars = ""
         if (Files.exists(Paths.get(root, "src", "main", "resources", extension.textmateGrammar))) {
             grammars = """
@@ -132,12 +136,18 @@ class LanguageServerPlugin : Plugin<Project?> {
             """.trimIndent()
             Files.copy(Paths.get(root, "src", "main", "resources", extension.textmateGrammar), Paths.get(root, "build", "vscode", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
         }
+
+        var logo = ""
+        if (Files.exists(extension.logoPath)) {
+            logo = """"icon": "logo.png","""
+        }
+
         Files.writeString(
             Paths.get(root, "build", "vscode", "package.json"),
             """
         {
             "name": "${name.lowercase(Locale.getDefault())}",
-            "version": "0.0.0",
+            "version": "0.0.0",$logo
             "publisher": "strumenta",
             "contributes":
             {
@@ -177,9 +187,13 @@ class LanguageServerPlugin : Plugin<Project?> {
         ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").directory(project.projectDir).start().waitFor()
         ProcessBuilder("npx", "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
 
+        if (Files.exists(extension.logoPath)) {
+            Files.copy(extension.logoPath, Paths.get(root, "build", "vscode", "logo.png"), StandardCopyOption.REPLACE_EXISTING)
+        }
+
         if (!Files.exists(Paths.get(project.projectDir.toString(), "build", "vscode", "LICENSE.md"))) {
             Files.writeString(Paths.get(project.projectDir.toString(), "build", "vscode", "LICENSE.md"), "Copyright Strumenta SRL")
         }
-        ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(Paths.get(project.projectDir.toString(), "build", "vscode").toFile()).redirectErrorStream(true).start()
+        ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(Paths.get(project.projectDir.toString(), "build", "vscode").toFile()).redirectErrorStream(true).start().waitFor()
     }
 }
