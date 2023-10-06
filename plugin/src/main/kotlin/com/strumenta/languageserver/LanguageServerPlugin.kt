@@ -22,6 +22,7 @@ open class LanguageServerExtension {
     var textmateGrammar: String = "grammar.tmLanguage"
     var textmateGrammarScope: String = "scope.main"
     var logoPath: Path = Paths.get("logo.png")
+    var fileIconPath: Path = Paths.get("fileIcon.png")
 }
 
 class LanguageServerPlugin : Plugin<Project?> {
@@ -59,6 +60,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         extension.shadowJarName = language
         extension.examples = project.rootDir.absolutePath + "/examples"
         extension.logoPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "logo.png")
+        extension.fileIconPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "fileIcon.png")
 
         addCreateEntryPointTask(project)
         addCreateVscodeExtensionTask(project)
@@ -142,6 +144,11 @@ class LanguageServerPlugin : Plugin<Project?> {
             logo = """"icon": "logo.png","""
         }
 
+        var fileIcon = ""
+        if (Files.exists(extension.fileIconPath)) {
+            fileIcon = """, "icon": {"dark": "fileIcon.png", "light": "fileIcon.png"}"""
+        }
+
         Files.writeString(
             Paths.get(root, "build", "vscode", "package.json"),
             """
@@ -153,7 +160,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             {
                 "languages":
                 [
-                    {"id": "$name", "extensions": ["${extension.fileExtensions.joinToString("\", \"")}"]}
+                    {"id": "$name", "extensions": ["${extension.fileExtensions.joinToString("\", \"")}"]$fileIcon}
                 ]$grammars
             },
             "engines": {"vscode": "^1.52.0"},
@@ -189,6 +196,10 @@ class LanguageServerPlugin : Plugin<Project?> {
 
         if (Files.exists(extension.logoPath)) {
             Files.copy(extension.logoPath, Paths.get(root, "build", "vscode", "logo.png"), StandardCopyOption.REPLACE_EXISTING)
+        }
+
+        if (Files.exists(extension.fileIconPath)) {
+            Files.copy(extension.fileIconPath, Paths.get(root, "build", "vscode", "fileIcon.png"), StandardCopyOption.REPLACE_EXISTING)
         }
 
         if (!Files.exists(Paths.get(project.projectDir.toString(), "build", "vscode", "LICENSE.md"))) {
