@@ -20,10 +20,13 @@ import org.eclipse.lsp4j.DidOpenTextDocumentParams
 import org.eclipse.lsp4j.DidSaveTextDocumentParams
 import org.eclipse.lsp4j.DocumentSymbol
 import org.eclipse.lsp4j.DocumentSymbolParams
+import org.eclipse.lsp4j.Hover
+import org.eclipse.lsp4j.HoverParams
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
+import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
@@ -86,6 +89,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         capabilities.setDefinitionProvider(true)
         capabilities.setReferencesProvider(true)
         capabilities.setRenameProvider(true)
+        capabilities.setHoverProvider(true)
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
@@ -206,6 +210,17 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
     protected open fun rename(node: Node, newName: String): TextEdit {
         return TextEdit(toLSPRange(node.position!!), newName)
+    }
+
+    override fun hover(params: HoverParams?): CompletableFuture<Hover> {
+        val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
+        val information = informationFor(node)
+
+        return CompletableFuture.completedFuture(Hover(MarkupContent("markdown", information)))
+    }
+
+    protected open fun informationFor(node: Node): String {
+        return node.simpleNodeType
     }
 
     private fun getNode(params: TextDocumentPositionParams?): Node? {
