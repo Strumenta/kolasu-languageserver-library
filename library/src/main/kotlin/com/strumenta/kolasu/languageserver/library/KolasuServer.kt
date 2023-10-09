@@ -27,6 +27,8 @@ import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
 import org.eclipse.lsp4j.MarkupContent
+import org.eclipse.lsp4j.MessageActionItem
+import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
@@ -34,6 +36,7 @@ import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
+import org.eclipse.lsp4j.ShowMessageRequestParams
 import org.eclipse.lsp4j.SymbolInformation
 import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.TextDocumentEdit
@@ -200,12 +203,26 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     override fun rename(params: RenameParams?): CompletableFuture<WorkspaceEdit> {
         val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
 
-        val symbol = symbols[node.sourceText] ?: return CompletableFuture.completedFuture(null)
-        val edits = symbol.references.map { rename(it, params!!.newName) }.toMutableList()
-        edits.reverse()
+        val future = CompletableFuture<WorkspaceEdit>()
+        val confirmation = ShowMessageRequestParams(listOf(MessageActionItem("Yes"), MessageActionItem("No"))).apply {
+            this.type = MessageType.Info
+            this.message = "Are you sure?"
+        }
+        client.showMessageRequest(confirmation).thenApply { item ->
+            if (item.title == "No") {
+                future.complete(null)
+            }
+            val symbol = symbols[node.sourceText]
+            if (symbol == null) {
+                future.complete(null)
+            }
+            val edits = symbol!!.references.map { rename(it, params!!.newName) }.toMutableList()
+            edits.reverse()
+            val textEdits = TextDocumentEdit(VersionedTextDocumentIdentifier(params!!.textDocument.uri, 0), edits)
+            future.complete(WorkspaceEdit(listOf(Either.forLeft(textEdits))))
+        }
 
-        val textEdits = TextDocumentEdit(VersionedTextDocumentIdentifier(params!!.textDocument.uri, 0), edits)
-        return CompletableFuture.completedFuture(WorkspaceEdit(listOf(Either.forLeft(textEdits))))
+        return future
     }
 
     protected open fun rename(node: Node, newName: String): TextEdit {
