@@ -14,15 +14,15 @@ import java.nio.file.StandardCopyOption
 import java.util.*
 
 open class LanguageServerExtension {
-    var editor: String = "code"
-    var language: String = "language"
-    var fileExtensions: List<String> = listOf("extension")
-    var shadowJarName: String = ""
-    var examples: String = "examples"
-    var textmateGrammar: String = "grammar.tmLanguage"
-    var textmateGrammarScope: String = "scope.main"
-    var logoPath: Path = Paths.get("logo.png")
-    var fileIconPath: Path = Paths.get("fileIcon.png")
+    var editor: String = ""
+    var language: String = ""
+    var fileExtensions: List<String> = listOf()
+    var serverJarPath: Path = Paths.get("")
+    var examplesPath: Path = Paths.get("")
+    var textmateGrammarPath: Path = Paths.get("")
+    var textmateGrammarScope: String = ""
+    var logoPath: Path = Paths.get("")
+    var fileIconPath: Path = Paths.get("")
 }
 
 class LanguageServerPlugin : Plugin<Project?> {
@@ -57,8 +57,8 @@ class LanguageServerPlugin : Plugin<Project?> {
         extension.language = language
         extension.fileExtensions = mutableListOf(".$language")
         extension.editor = "code"
-        extension.shadowJarName = language
-        extension.examples = project.rootDir.absolutePath + "/examples"
+        extension.serverJarPath = Paths.get(project.projectDir.toString(), "build", "libs", "$language.jar")
+        extension.examplesPath = Paths.get(project.projectDir.toString(), "examples")
         extension.logoPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "logo.png")
         extension.fileIconPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "fileIcon.png")
 
@@ -101,7 +101,7 @@ class LanguageServerPlugin : Plugin<Project?> {
     }
 
     private fun launchVscodeEditor(project: Project) {
-        ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/vscode", extension.examples).directory(project.projectDir).start().waitFor()
+        ProcessBuilder(extension.editor, "--extensionDevelopmentPath", "${project.projectDir}/build/vscode", extension.examplesPath.toString()).directory(project.projectDir).start().waitFor()
     }
 
     private fun addCreateVscodeExtensionTask(project: Project) {
@@ -128,7 +128,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         Files.createDirectories(Paths.get(root, "build", "vscode"))
 
         var grammars = ""
-        if (Files.exists(Paths.get(root, "src", "main", "resources", extension.textmateGrammar))) {
+        if (Files.exists(extension.textmateGrammarPath)) {
             grammars = """
             ,
             "grammars":
@@ -136,7 +136,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                 {"language": "$name", "scopeName": "${extension.textmateGrammarScope}", "path": "./grammar.tmLanguage"}
             ]
             """.trimIndent()
-            Files.copy(Paths.get(root, "src", "main", "resources", extension.textmateGrammar), Paths.get(root, "build", "vscode", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(extension.textmateGrammarPath, Paths.get(root, "build", "vscode", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
         }
 
         var logo = ""
@@ -189,7 +189,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             """.trimIndent()
         )
 
-        Files.copy(Paths.get(root, "build", "libs", extension.shadowJarName + ".jar"), Paths.get(root, "build", "vscode", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(extension.serverJarPath, Paths.get(root, "build", "vscode", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
 
         ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").directory(project.projectDir).start().waitFor()
         ProcessBuilder("npx", "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
