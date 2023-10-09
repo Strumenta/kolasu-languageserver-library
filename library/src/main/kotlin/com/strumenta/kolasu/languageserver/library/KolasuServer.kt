@@ -10,6 +10,8 @@ import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
 import com.strumenta.kolasu.traversing.walk
+import org.eclipse.lsp4j.ConfigurationItem
+import org.eclipse.lsp4j.ConfigurationParams
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DiagnosticSeverity
@@ -29,6 +31,7 @@ import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
 import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.MessageActionItem
+import org.eclipse.lsp4j.MessageParams
 import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
@@ -115,17 +118,22 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         val uri = params.textDocument.uri
         val tree = uriToParsingResult[uri]?.root ?: return
 
-        val diagnostics = mutableListOf<Diagnostic>()
-        for (node in tree.walk()) {
-            if (node.children.isEmpty() || node.position == null) continue
-            if (tree.findByPosition(node.position!!) != node) {
-                val diagnostic = Diagnostic(toLSPRange(node.position!!), "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(node.position!!)?.simpleNodeType}")
-                diagnostic.severity = DiagnosticSeverity.Warning
-                diagnostics.add(diagnostic)
+        client.configuration(ConfigurationParams(listOf(ConfigurationItem().apply { this.section = "rpg.diagnoseAST" }))).thenAccept { response ->
+            val diagnoseAST = response[0].toString() == "true"
+            if (diagnoseAST) {
+                val diagnostics = mutableListOf<Diagnostic>()
+                for (node in tree.walk()) {
+                    if (node.children.isEmpty() || node.position == null) continue
+                    if (tree.findByPosition(node.position!!) != node) {
+                        val diagnostic = Diagnostic(toLSPRange(node.position!!), "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(node.position!!)?.simpleNodeType}")
+                        diagnostic.severity = DiagnosticSeverity.Warning
+                        diagnostics.add(diagnostic)
+                    }
+                }
+
+                client.publishDiagnostics(PublishDiagnosticsParams(params.textDocument.uri, diagnostics))
             }
         }
-
-        client.publishDiagnostics(PublishDiagnosticsParams(params.textDocument.uri, diagnostics))
     }
 
     private fun parseAndPublishDiagnostics(text: String, uri: String) {
@@ -295,6 +303,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     }
 
     override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
+        client.showMessage(MessageParams(MessageType.Info, "hi"))
     }
 
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
