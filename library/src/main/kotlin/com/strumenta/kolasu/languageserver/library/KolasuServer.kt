@@ -12,6 +12,7 @@ import com.strumenta.kolasu.traversing.findByPosition
 import com.strumenta.kolasu.traversing.walk
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.Diagnostic
+import org.eclipse.lsp4j.DiagnosticSeverity
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams
@@ -106,7 +107,25 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         params?.apply {
             assert(this.contentChanges.size == 1)
             parseAndPublishDiagnostics(this.contentChanges.first().text, params.textDocument.uri)
+            showLeaves(params)
         }
+    }
+
+    private fun showLeaves(params: DidChangeTextDocumentParams) {
+        val uri = params.textDocument.uri
+        val tree = uriToParsingResult[uri]?.root ?: return
+
+        val diagnostics = mutableListOf<Diagnostic>()
+        for (node in tree.walk()) {
+            if (node.children.isEmpty() || node.position == null) continue
+            if (tree.findByPosition(node.position!!) != node) {
+                val diagnostic = Diagnostic(toLSPRange(node.position!!), "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(node.position!!)?.simpleNodeType}")
+                diagnostic.severity = DiagnosticSeverity.Warning
+                diagnostics.add(diagnostic)
+            }
+        }
+
+        client.publishDiagnostics(PublishDiagnosticsParams(params.textDocument.uri, diagnostics))
     }
 
     private fun parseAndPublishDiagnostics(text: String, uri: String) {
