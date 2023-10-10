@@ -65,7 +65,7 @@ import kotlin.reflect.full.isSubtypeOf
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 
-open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val name: String = "kolasuServer", private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected lateinit var client: LanguageClient
     protected val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
@@ -103,6 +103,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     override fun didOpen(params: DidOpenTextDocumentParams?) {
         params?.apply {
             parseAndPublishDiagnostics(this.textDocument.text, this.textDocument.uri)
+            diagnoseAST(params.textDocument.uri)
         }
     }
 
@@ -110,29 +111,38 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         params?.apply {
             assert(this.contentChanges.size == 1)
             parseAndPublishDiagnostics(this.contentChanges.first().text, params.textDocument.uri)
-            showLeaves(params)
+            diagnoseAST(params.textDocument.uri)
         }
     }
 
-    private fun showLeaves(params: DidChangeTextDocumentParams) {
-        val uri = params.textDocument.uri
+    private fun diagnoseAST(uri: String) {
         val tree = uriToParsingResult[uri]?.root ?: return
 
-        client.configuration(ConfigurationParams(listOf(ConfigurationItem().apply { this.section = "rpg.diagnoseAST" }))).thenAccept { response ->
+        val diagnoseASTConfiguration = ConfigurationItem().apply { section = "$name.diagnoseAST" }
+        val showLeavesConfiguration = ConfigurationItem().apply { section = "$name.showLeaves" }
+        val configurations = listOf(diagnoseASTConfiguration, showLeavesConfiguration)
+
+        client.configuration(ConfigurationParams(configurations)).thenAccept { response ->
             val diagnoseAST = response[0].toString() == "true"
-            if (diagnoseAST) {
-                val diagnostics = mutableListOf<Diagnostic>()
-                for (node in tree.walk()) {
-                    if (node.children.isEmpty() || node.position == null) continue
-                    if (tree.findByPosition(node.position!!) != node) {
-                        val diagnostic = Diagnostic(toLSPRange(node.position!!), "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(node.position!!)?.simpleNodeType}")
-                        diagnostic.severity = DiagnosticSeverity.Warning
-                        diagnostics.add(diagnostic)
-                    }
+            val showLeaves = response[1].toString() == "true"
+
+            val diagnostics = mutableListOf<Diagnostic>()
+            for (node in tree.walk()) {
+                if (node.children.isNotEmpty() || node.position == null) continue
+
+                if (diagnoseAST && tree.findByPosition(node.position!!) != node) {
+                    val diagnostic = Diagnostic(toLSPRange(node.position!!), "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(node.position!!)?.simpleNodeType}")
+                    diagnostic.severity = DiagnosticSeverity.Warning
+                    diagnostics.add(diagnostic)
                 }
 
-                client.publishDiagnostics(PublishDiagnosticsParams(params.textDocument.uri, diagnostics))
+                if (showLeaves) {
+                    val diagnostic = Diagnostic(toLSPRange(node.position!!), "Leaf position: ${node.position}, Source text: ${node.sourceText}")
+                    diagnostic.severity = DiagnosticSeverity.Information
+                    diagnostics.add(diagnostic)
+                }
             }
+            client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
         }
     }
 
