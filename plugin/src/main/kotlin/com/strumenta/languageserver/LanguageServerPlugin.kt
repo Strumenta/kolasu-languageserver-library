@@ -115,7 +115,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         
                     fun main() {
                         val parser = ${language.capitalized()}KolasuParser()
-                        val server = KolasuServer(parser)
+                        val server = KolasuServer(parser, "$language")
                         server.startCommunication()
                     }
                     """.trimIndent()
