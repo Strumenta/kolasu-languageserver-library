@@ -1,5 +1,6 @@
 package com.strumenta.kolasu.languageserver.library
 
+import com.google.gson.JsonObject
 import com.strumenta.kolasu.model.FileSource
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.Point
@@ -10,8 +11,6 @@ import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
 import com.strumenta.kolasu.traversing.walk
-import org.eclipse.lsp4j.ConfigurationItem
-import org.eclipse.lsp4j.ConfigurationParams
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DiagnosticSeverity
@@ -27,16 +26,18 @@ import org.eclipse.lsp4j.Hover
 import org.eclipse.lsp4j.HoverParams
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
+import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
 import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.MessageActionItem
-import org.eclipse.lsp4j.MessageParams
 import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.ReferenceParams
+import org.eclipse.lsp4j.Registration
+import org.eclipse.lsp4j.RegistrationParams
 import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
@@ -65,11 +66,16 @@ import kotlin.reflect.full.isSubtypeOf
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 
+data class DidChangeConfigurationRegistrationOptions(val section: String)
 open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val name: String = "kolasuServer", private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected lateinit var client: LanguageClient
     protected val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
     protected val symbols: MutableMap<String, Symbol> = mutableMapOf()
+    protected var configuration: JsonObject = JsonObject()
+
+    override fun getTextDocumentService() = this
+    override fun getWorkspaceService() = this
 
     fun startCommunication(inputStream: InputStream = System.`in`, outputStream: OutputStream = System.out) {
         val launcher = LSPLauncher.createServerLauncher(this, inputStream, outputStream)
@@ -79,14 +85,6 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
     override fun connect(client: LanguageClient) {
         this.client = client
-    }
-
-    override fun getTextDocumentService(): TextDocumentService {
-        return this
-    }
-
-    override fun getWorkspaceService(): WorkspaceService {
-        return this
     }
 
     override fun initialize(params: InitializeParams?): CompletableFuture<InitializeResult> {
@@ -100,50 +98,53 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
+    override fun initialized(params: InitializedParams?) {
+        val registrationParams = DidChangeConfigurationRegistrationOptions(name)
+        client.registerCapability(RegistrationParams(listOf(Registration("myID", "workspace/didChangeConfiguration", registrationParams))))
+    }
+
+    override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
+        val settings = params?.settings as? JsonObject ?: return
+        configuration = settings[name].asJsonObject
+    }
+
     override fun didOpen(params: DidOpenTextDocumentParams?) {
-        params?.apply {
-            parseAndPublishDiagnostics(this.textDocument.text, this.textDocument.uri)
-            diagnoseAST(params.textDocument.uri)
-        }
+        val uri = params?.textDocument?.uri ?: return
+        val text = params.textDocument.text
+
+        parseAndPublishDiagnostics(text, uri)
+        diagnoseAST(uri)
     }
 
     override fun didChange(params: DidChangeTextDocumentParams?) {
-        params?.apply {
-            assert(this.contentChanges.size == 1)
-            parseAndPublishDiagnostics(this.contentChanges.first().text, params.textDocument.uri)
-            diagnoseAST(params.textDocument.uri)
-        }
+        val uri = params?.textDocument?.uri ?: return
+        val change = params.contentChanges.first() ?: return
+
+        parseAndPublishDiagnostics(change.text, uri)
+        diagnoseAST(uri)
     }
 
     private fun diagnoseAST(uri: String) {
         val tree = uriToParsingResult[uri]?.root ?: return
 
-        val diagnoseASTConfiguration = ConfigurationItem().apply { section = "$name.diagnoseAST" }
-        val showLeavesConfiguration = ConfigurationItem().apply { section = "$name.showLeaves" }
-        val configurations = listOf(diagnoseASTConfiguration, showLeavesConfiguration)
+        val diagnoseAST = configuration["diagnoseAST"]?.asBoolean ?: return
+        val showLeaves = configuration["showLeaves"]?.asBoolean ?: return
 
-        client.configuration(ConfigurationParams(configurations)).thenAccept { response ->
-            val diagnoseAST = response[0].toString() == "true"
-            val showLeaves = response[1].toString() == "true"
+        if (!diagnoseAST && !showLeaves) return
 
-            val diagnostics = mutableListOf<Diagnostic>()
-            for (node in tree.walk()) {
-                if (node.children.isNotEmpty() || node.position == null) continue
+        val diagnostics = mutableListOf<Diagnostic>()
+        for (node in tree.walk()) {
+            if (node.children.isNotEmpty() || node.position == null) continue
 
-                if (diagnoseAST && tree.findByPosition(node.position!!) != node) {
-                    val diagnostic = Diagnostic(toLSPRange(node.position!!), "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(node.position!!)?.simpleNodeType}")
-                    diagnostic.severity = DiagnosticSeverity.Warning
-                    diagnostics.add(diagnostic)
-                }
-
-                if (showLeaves) {
-                    val diagnostic = Diagnostic(toLSPRange(node.position!!), "Leaf position: ${node.position}, Source text: ${node.sourceText}")
-                    diagnostic.severity = DiagnosticSeverity.Information
-                    diagnostics.add(diagnostic)
-                }
+            if (diagnoseAST && tree.findByPosition(node.position!!) != node) {
+                diagnostics.add(Diagnostic(toLSPRange(node.position!!), "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(node.position!!)?.simpleNodeType}").apply { severity = DiagnosticSeverity.Warning })
             }
-            client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
+
+            if (showLeaves) {
+                diagnostics.add(Diagnostic(toLSPRange(node.position!!), "Leaf position: ${node.position}, Source text: ${node.sourceText}").apply { severity = DiagnosticSeverity.Information })
+            }
         }
+        client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
     }
 
     private fun parseAndPublishDiagnostics(text: String, uri: String) {
@@ -310,10 +311,6 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     }
 
     override fun didSave(params: DidSaveTextDocumentParams?) {
-    }
-
-    override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
-        client.showMessage(MessageParams(MessageType.Info, "hi"))
     }
 
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
