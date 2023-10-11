@@ -62,8 +62,10 @@ class LanguageServerPlugin : Plugin<Project?> {
         extension.fileExtensions = mutableListOf(".$language")
         extension.editor = "code"
         extension.serverJarPath = Paths.get(project.projectDir.toString(), "build", "libs", "$language.jar")
-        extension.examplesPath = Paths.get(project.projectDir.toString(), "examples")
+        extension.examplesPath = Paths.get(project.rootDir.toString(), "examples")
 
+        extension.textmateGrammarPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "grammar.tmLanguage")
+        extension.textmateGrammarScope = "main"
         extension.logoPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "logo.png")
         extension.fileIconPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "fileIcon.png")
         extension.languageClientPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "client.js")
@@ -130,6 +132,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         } else {
             var grammars = ""
             if (Files.exists(extension.textmateGrammarPath)) {
+                println(extension.textmateGrammarPath.toString())
                 grammars = """
                 ,
                 "grammars":
@@ -162,7 +165,32 @@ class LanguageServerPlugin : Plugin<Project?> {
                         "languages":
                         [
                             {"id": "$language", "extensions": ["${extension.fileExtensions.joinToString("\", \"")}"]$fileIcon}
-                        ]$grammars
+                        ],
+                        "configuration": {
+                            "title": "${language.capitalized()}",
+                            "properties": {
+                                "$language.showParsingErrors": {
+                                  "type": "boolean",
+                                  "default": true,
+                                  "description": "Show parsing errors produced by ANTLR."
+                                },
+                                "$language.includeErrorNodeFoundIssues": {
+                                  "type": "boolean",
+                                  "default": false,
+                                  "description": "Show the ANTLR issues that start with 'Error node found', usually duplicates."
+                                },
+                                "$language.showASTWarnings": {
+                                  "type": "boolean",
+                                  "default": false,
+                                  "description": "Show warnings for ast inconsistencies."
+                                },
+                                "$language.showLeafPositions": {
+                                  "type": "boolean",
+                                  "default": false,
+                                  "description": "Show all leaves' positions."
+                                }
+                            }
+                        }$grammars
                     },
                     "engines": {"vscode": "^1.52.0"},
                     "activationEvents": ["onLanguage:$language"],
