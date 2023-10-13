@@ -55,6 +55,8 @@ import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
 import org.eclipse.lsp4j.WorkspaceEdit
 import org.eclipse.lsp4j.WorkspaceFoldersOptions
 import org.eclipse.lsp4j.WorkspaceServerCapabilities
+import org.eclipse.lsp4j.WorkspaceSymbol
+import org.eclipse.lsp4j.WorkspaceSymbolParams
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.LanguageClient
@@ -98,13 +100,14 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
             folders.add(folder.uri)
         }
         val capabilities = ServerCapabilities()
+        capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
         capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
         capabilities.setDocumentSymbolProvider(true)
         capabilities.setDefinitionProvider(true)
         capabilities.setReferencesProvider(true)
         capabilities.setRenameProvider(true)
         capabilities.setHoverProvider(true)
-        capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
+        capabilities.setWorkspaceSymbolProvider(true)
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
@@ -338,6 +341,17 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         for (folder in event.removed) {
             folders.removeIf { it == folder.uri }
         }
+    }
+
+    override fun symbol(params: WorkspaceSymbolParams?): CompletableFuture<Either<MutableList<out SymbolInformation>, MutableList<out WorkspaceSymbol>>> {
+        val symbols = mutableListOf<WorkspaceSymbol>()
+        for (file in files) {
+            for (symbol in file.value.symbols) {
+                val definition = symbol.value.definition as Node
+                symbols.add(WorkspaceSymbol(symbol.key, symbolKindOf(definition), Either.forLeft(Location(file.key, toLSPRange(definition.position!!)))))
+            }
+        }
+        return CompletableFuture.completedFuture(Either.forRight(symbols))
     }
 
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
