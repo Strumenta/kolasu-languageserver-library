@@ -53,6 +53,8 @@ import org.eclipse.lsp4j.TextDocumentSyncOptions
 import org.eclipse.lsp4j.TextEdit
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
 import org.eclipse.lsp4j.WorkspaceEdit
+import org.eclipse.lsp4j.WorkspaceFoldersOptions
+import org.eclipse.lsp4j.WorkspaceServerCapabilities
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.LanguageClient
@@ -76,6 +78,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     protected val symbols: MutableMap<String, Symbol> = mutableMapOf()
     protected var configuration: JsonObject = JsonObject()
     protected var traceLevel: String = "off"
+    protected val folders: MutableList<String> = mutableListOf()
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
@@ -91,6 +94,10 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     }
 
     override fun initialize(params: InitializeParams?): CompletableFuture<InitializeResult> {
+        val workspaceFolders = params?.workspaceFolders ?: return CompletableFuture.completedFuture(null)
+        for (folder in workspaceFolders) {
+            folders.add(folder.uri)
+        }
         val capabilities = ServerCapabilities()
         capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
         capabilities.setDocumentSymbolProvider(true)
@@ -98,6 +105,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         capabilities.setReferencesProvider(true)
         capabilities.setRenameProvider(true)
         capabilities.setHoverProvider(true)
+        capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
@@ -109,6 +117,11 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
         val settings = params?.settings as? JsonObject ?: return
         configuration = settings[language].asJsonObject
+    }
+
+    override fun setTrace(params: SetTraceParams?) {
+        val level = params?.value ?: return
+        traceLevel = level
     }
 
     override fun didOpen(params: DidOpenTextDocumentParams?) {
@@ -313,16 +326,17 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     }
 
     override fun didChangeWorkspaceFolders(params: DidChangeWorkspaceFoldersParams?) {
-        client.showMessage(MessageParams(MessageType.Info, "Change workspace folders"))
+        val event = params?.event ?: return
+        for (folder in event.added) {
+            folders.add(folder.uri)
+        }
+        for (folder in event.removed) {
+            folders.removeIf { it == folder.uri }
+        }
     }
 
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
         client.showMessage(MessageParams(MessageType.Info, "Change watched files"))
-    }
-
-    override fun setTrace(params: SetTraceParams?) {
-        val level = params?.value ?: return
-        traceLevel = level
     }
 
     override fun shutdown(): CompletableFuture<Any> {
@@ -334,8 +348,8 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     override fun exit() {
         exitProcess(0)
     }
+
+    data class ProjectFile<R : Node>(val parsingResult: ParsingResult<R>, val symbols: MutableMap<String, Symbol>)
+    data class Symbol(val definition: PossiblyNamed, val references: MutableList<Node>)
+    data class DidChangeConfigurationRegistrationOptions(val section: String)
 }
-
-data class Symbol(val definition: PossiblyNamed, val references: MutableList<Node>)
-
-data class DidChangeConfigurationRegistrationOptions(val section: String)
