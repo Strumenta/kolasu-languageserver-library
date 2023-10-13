@@ -17,6 +17,7 @@ import org.eclipse.lsp4j.DiagnosticSeverity
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams
+import org.eclipse.lsp4j.DidChangeWorkspaceFoldersParams
 import org.eclipse.lsp4j.DidCloseTextDocumentParams
 import org.eclipse.lsp4j.DidOpenTextDocumentParams
 import org.eclipse.lsp4j.DidSaveTextDocumentParams
@@ -31,6 +32,7 @@ import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
 import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.MessageActionItem
+import org.eclipse.lsp4j.MessageParams
 import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.PublishDiagnosticsParams
@@ -65,6 +67,7 @@ import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.isSubtypeOf
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
+import kotlin.system.exitProcess
 
 open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val language: String = "kolasuServer", private val includeErrorNodeIssues: Boolean = false) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
@@ -72,6 +75,7 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     protected val uriToParsingResult: MutableMap<String, ParsingResult<R>> = mutableMapOf()
     protected val symbols: MutableMap<String, Symbol> = mutableMapOf()
     protected var configuration: JsonObject = JsonObject()
+    protected var traceLevel: String = "off"
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
@@ -308,17 +312,27 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     override fun didSave(params: DidSaveTextDocumentParams?) {
     }
 
+    override fun didChangeWorkspaceFolders(params: DidChangeWorkspaceFoldersParams?) {
+        client.showMessage(MessageParams(MessageType.Info, "Change workspace folders"))
+    }
+
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
+        client.showMessage(MessageParams(MessageType.Info, "Change watched files"))
     }
 
     override fun setTrace(params: SetTraceParams?) {
+        val level = params?.value ?: return
+        traceLevel = level
     }
 
     override fun shutdown(): CompletableFuture<Any> {
+        // In a multithreaded scenario it should wait until all requests have been fulfilled
+        // Since it is single threaded for now, it is ready to exit immediately
         return CompletableFuture.completedFuture(null)
     }
 
     override fun exit() {
+        exitProcess(0)
     }
 }
 
