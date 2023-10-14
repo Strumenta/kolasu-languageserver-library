@@ -75,13 +75,13 @@ import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
-open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val language: String = "kolasuServer") : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<T : Node>(private val parser: ASTParser<T>, private val language: String = "kolasuServer", private val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected lateinit var client: LanguageClient
     protected var configuration: JsonObject = JsonObject()
     protected var traceLevel: String = "off"
     protected val folders: MutableList<String> = mutableListOf()
-    protected val files: MutableMap<String, ProjectFile<R>> = mutableMapOf()
+    protected val files: MutableMap<String, ProjectFile<T>> = mutableMapOf()
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
@@ -337,6 +337,10 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     }
 
     override fun didSave(params: DidSaveTextDocumentParams?) {
+        val uri = params?.textDocument?.uri ?: return
+        val tree = files[uri]?.parsingResult?.root ?: return
+
+        generator?.generate(tree)
     }
 
     override fun didChangeWorkspaceFolders(params: DidChangeWorkspaceFoldersParams?) {
@@ -372,7 +376,11 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         exitProcess(0)
     }
 
-    data class ProjectFile<R : Node>(val parsingResult: ParsingResult<R>, val symbols: MutableMap<String, Symbol>)
+    data class ProjectFile<T : Node>(val parsingResult: ParsingResult<T>, val symbols: MutableMap<String, Symbol>)
     data class Symbol(val definition: PossiblyNamed, val references: MutableList<Node>)
     data class DidChangeConfigurationRegistrationOptions(val section: String)
+}
+
+interface CodeGenerator<T : Node> {
+    fun generate(tree: T)
 }
