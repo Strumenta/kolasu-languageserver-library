@@ -64,8 +64,10 @@ import org.eclipse.lsp4j.services.LanguageClientAware
 import org.eclipse.lsp4j.services.LanguageServer
 import org.eclipse.lsp4j.services.TextDocumentService
 import org.eclipse.lsp4j.services.WorkspaceService
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.URI
 import java.util.concurrent.CompletableFuture
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.isSubtypeOf
@@ -135,9 +137,16 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
 
     override fun didChange(params: DidChangeTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
-        val change = params.contentChanges.first() ?: return
+        val text = params.contentChanges.first()?.text ?: return
 
-        parseAndPublishDiagnostics(change.text, uri)
+        parseAndPublishDiagnostics(text, uri)
+    }
+
+    override fun didClose(params: DidCloseTextDocumentParams?) {
+        val uri = params?.textDocument?.uri ?: return
+        val text = File(URI(uri)).readText()
+
+        parseAndPublishDiagnostics(text, uri)
     }
 
     private fun parseAndPublishDiagnostics(text: String, uri: String) {
@@ -327,9 +336,6 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
         return com.strumenta.kolasu.model.Position(start, end)
     }
 
-    override fun didClose(params: DidCloseTextDocumentParams?) {
-    }
-
     override fun didSave(params: DidSaveTextDocumentParams?) {
     }
 
@@ -359,8 +365,6 @@ open class KolasuServer<R : Node>(private val parser: ASTParser<R>, private val 
     }
 
     override fun shutdown(): CompletableFuture<Any> {
-        // In a multithreaded scenario it should wait until all requests have been fulfilled
-        // Since it is single threaded for now, it is ready to exit immediately
         return CompletableFuture.completedFuture(null)
     }
 
