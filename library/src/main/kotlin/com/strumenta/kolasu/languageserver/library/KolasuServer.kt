@@ -64,18 +64,22 @@ import org.eclipse.lsp4j.services.LanguageClientAware
 import org.eclipse.lsp4j.services.LanguageServer
 import org.eclipse.lsp4j.services.TextDocumentService
 import org.eclipse.lsp4j.services.WorkspaceService
-import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.URI
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.concurrent.CompletableFuture
+import kotlin.io.path.extension
+import kotlin.io.path.isDirectory
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.isSubtypeOf
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
-open class KolasuServer<T : Node>(private val parser: ASTParser<T>, private val language: String = "kolasuServer", private val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected val language: String = "kolasuServer", protected val extensions: List<String> = listOf(), private val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected lateinit var client: LanguageClient
     protected var configuration: JsonObject = JsonObject()
@@ -113,6 +117,20 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, private val 
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
+    protected open fun walkAndParse(directory: Path) {
+        client.showMessage(MessageParams(MessageType.Info, "Walking $directory"))
+        for (file in Files.list(directory)) {
+            if (file.isDirectory()) {
+                walkAndParse(file)
+            } else if (extensions.contains(file.extension)) {
+                val uri = file.toUri().toString()
+                val text = Files.readString(file)
+
+                parseAndPublishDiagnostics(text, uri)
+            }
+        }
+    }
+
     override fun initialized(params: InitializedParams?) {
         val registrationParams = DidChangeConfigurationRegistrationOptions(language)
         client.registerCapability(RegistrationParams(listOf(Registration("myID", "workspace/didChangeConfiguration", registrationParams))))
@@ -121,6 +139,10 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, private val 
     override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
         val settings = params?.settings as? JsonObject ?: return
         configuration = settings[language].asJsonObject
+
+        for (folder in folders) {
+            walkAndParse(Paths.get(URI(folder)))
+        }
     }
 
     override fun setTrace(params: SetTraceParams?) {
@@ -144,7 +166,7 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, private val 
 
     override fun didClose(params: DidCloseTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
-        val text = File(URI(uri)).readText()
+        val text = Files.readString(Paths.get(URI(uri)))
 
         parseAndPublishDiagnostics(text, uri)
     }
