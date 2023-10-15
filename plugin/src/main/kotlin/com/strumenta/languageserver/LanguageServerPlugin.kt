@@ -59,7 +59,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.extensions.add("languageServer", LanguageServerExtension::class.java)
         extension = project.extensions.getByType(LanguageServerExtension::class.java)
         extension.language = language
-        extension.fileExtensions = mutableListOf(".$language")
+        extension.fileExtensions = mutableListOf(language)
         extension.editor = "code"
         extension.serverJarPath = Paths.get(project.projectDir.toString(), "build", "libs", "$language.jar")
         extension.examplesPath = Paths.get(project.rootDir.toString(), "examples")
@@ -115,9 +115,12 @@ class LanguageServerPlugin : Plugin<Project?> {
                     import com.strumenta.$language.parser.${language.capitalized()}KolasuParser
                     import com.strumenta.kolasu.languageserver.library.KolasuServer
         
-                    fun main() {
+                    fun main(arguments: Array<String>) {
+                        val language = arguments[0]
+                        val fileExtensions = arguments[1].split(",")
+                        
                         val parser = ${language.capitalized()}KolasuParser()
-                        val server = KolasuServer(parser, "$language")
+                        val server = KolasuServer(parser, language, fileExtensions)
                         server.startCommunication()
                     }
                     """.trimIndent()
@@ -208,7 +211,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         
                 async function activate (context)
                 {
-                    let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar")]}};
+                    let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar"), "$language", "${extension.fileExtensions.joinToString(",")}"]}};
         
                     let languageClient = new LanguageClient("$language", "$language language server", productionServer, {documentSelector: ["$language"]});
                     await languageClient.start();

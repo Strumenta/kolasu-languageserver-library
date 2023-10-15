@@ -79,7 +79,7 @@ import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
-open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected val language: String = "kolasuServer", protected val extensions: List<String> = listOf(), private val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected val language: String = "", protected val extensions: List<String> = listOf(), private val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected lateinit var client: LanguageClient
     protected var configuration: JsonObject = JsonObject()
@@ -117,20 +117,6 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
-    protected open fun walkAndParse(directory: Path) {
-        client.showMessage(MessageParams(MessageType.Info, "Walking $directory"))
-        for (file in Files.list(directory)) {
-            if (file.isDirectory()) {
-                walkAndParse(file)
-            } else if (extensions.contains(file.extension)) {
-                val uri = file.toUri().toString()
-                val text = Files.readString(file)
-
-                parseAndPublishDiagnostics(text, uri)
-            }
-        }
-    }
-
     override fun initialized(params: InitializedParams?) {
         val registrationParams = DidChangeConfigurationRegistrationOptions(language)
         client.registerCapability(RegistrationParams(listOf(Registration("myID", "workspace/didChangeConfiguration", registrationParams))))
@@ -142,6 +128,19 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
 
         for (folder in folders) {
             walkAndParse(Paths.get(URI(folder)))
+        }
+    }
+
+    protected open fun walkAndParse(directory: Path) {
+        for (file in Files.list(directory)) {
+            if (file.isDirectory()) {
+                walkAndParse(file)
+            } else if (extensions.contains(file.extension)) {
+                val uri = file.toUri().toString()
+                val text = Files.readString(file)
+
+                parseAndPublishDiagnostics(text, uri)
+            }
         }
     }
 
