@@ -132,7 +132,6 @@ class LanguageServerPlugin : Plugin<Project?> {
         } else {
             var grammars = ""
             if (Files.exists(extension.textmateGrammarPath)) {
-                println(extension.textmateGrammarPath.toString())
                 grammars = """
                 ,
                 "grammars":
@@ -140,7 +139,6 @@ class LanguageServerPlugin : Plugin<Project?> {
                     {"language": "$language", "scopeName": "${extension.textmateGrammarScope}", "path": "./grammar.tmLanguage"}
                 ]
                 """.trimIndent()
-                Files.copy(extension.textmateGrammarPath, Paths.get(root, "build", "vscode", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
             }
 
             var logo = ""
@@ -164,7 +162,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                     {
                         "languages":
                         [
-                            {"id": "$language", "extensions": ["${extension.fileExtensions.joinToString("\", \"")}"]$fileIcon}
+                            {"id": "$language", "extensions": ["${extension.fileExtensions.joinToString("\", \""){ ".$it" }}"]$fileIcon}
                         ],
                         "configuration": {
                             "title": "${language.capitalized()}",
@@ -227,6 +225,10 @@ class LanguageServerPlugin : Plugin<Project?> {
 
         ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").directory(project.projectDir).start().waitFor()
         ProcessBuilder("npx", "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
+
+        if (Files.exists(extension.textmateGrammarPath)) {
+            Files.copy(extension.textmateGrammarPath, Paths.get(root, "build", "vscode", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
+        }
 
         if (Files.exists(extension.logoPath)) {
             Files.copy(extension.logoPath, Paths.get(root, "build", "vscode", "logo.png"), StandardCopyOption.REPLACE_EXISTING)
