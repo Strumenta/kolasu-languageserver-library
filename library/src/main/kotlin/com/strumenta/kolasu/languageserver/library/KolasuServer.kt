@@ -35,6 +35,7 @@ import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams
 import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.Position
+import org.eclipse.lsp4j.ProgressParams
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.ReferenceParams
@@ -52,6 +53,10 @@ import org.eclipse.lsp4j.TextDocumentSyncKind
 import org.eclipse.lsp4j.TextDocumentSyncOptions
 import org.eclipse.lsp4j.TextEdit
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
+import org.eclipse.lsp4j.WorkDoneProgressBegin
+import org.eclipse.lsp4j.WorkDoneProgressCreateParams
+import org.eclipse.lsp4j.WorkDoneProgressEnd
+import org.eclipse.lsp4j.WorkDoneProgressReport
 import org.eclipse.lsp4j.WorkspaceEdit
 import org.eclipse.lsp4j.WorkspaceFoldersOptions
 import org.eclipse.lsp4j.WorkspaceServerCapabilities
@@ -129,6 +134,15 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
         for (folder in folders) {
             walkAndParse(Paths.get(URI(folder)))
         }
+
+        client.createProgress(WorkDoneProgressCreateParams(Either.forLeft("parsingFolders")))
+        client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing"; message = "0 out of 5"; })))
+        client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { percentage = 0 })))
+        for (i in 1..100) {
+            Thread.sleep(100)
+            client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { percentage = i })))
+        }
+        client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressEnd())))
     }
 
     protected open fun walkAndParse(directory: Path) {
