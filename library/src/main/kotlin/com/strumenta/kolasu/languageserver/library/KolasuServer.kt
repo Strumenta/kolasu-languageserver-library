@@ -77,6 +77,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.CompletableFuture
 import kotlin.io.path.extension
+import kotlin.io.path.fileSize
 import kotlin.io.path.isDirectory
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.isSubtypeOf
@@ -131,29 +132,34 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
         val settings = params?.settings as? JsonObject ?: return
         configuration = settings[language].asJsonObject
 
-        for (folder in folders) {
-            walkAndParse(Paths.get(URI(folder)))
-        }
-
         client.createProgress(WorkDoneProgressCreateParams(Either.forLeft("parsingFolders")))
         client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing"; message = "0 out of 5"; })))
         client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { percentage = 0 })))
-        for (i in 1..100) {
-            Thread.sleep(100)
-            client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { percentage = i })))
-        }
-        client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressEnd())))
-    }
+        for (folder in folders) {
+            val projectFiles = mutableListOf<Path>()
+            projectFilesIn(Paths.get(URI(folder)), projectFiles)
 
-    protected open fun walkAndParse(directory: Path) {
-        for (file in Files.list(directory)) {
-            if (file.isDirectory()) {
-                walkAndParse(file)
-            } else if (extensions.contains(file.extension)) {
+            val totalBytes = projectFiles.sumOf { it.fileSize() }
+            var parsedBytes = 0L
+            for (file in projectFiles) {
                 val uri = file.toUri().toString()
                 val text = Files.readString(file)
 
                 parseAndPublishDiagnostics(text, uri)
+                parsedBytes += file.fileSize()
+                val percentage = (parsedBytes * 100 / totalBytes).toInt()
+                client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { this.percentage = percentage })))
+            }
+        }
+        client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressEnd())))
+    }
+
+    protected open fun projectFilesIn(directory: Path, result: MutableList<Path>) {
+        for (file in Files.list(directory)) {
+            if (file.isDirectory()) {
+                projectFilesIn(file, result)
+            } else if (extensions.contains(file.extension)) {
+                result.add(file)
             }
         }
     }
