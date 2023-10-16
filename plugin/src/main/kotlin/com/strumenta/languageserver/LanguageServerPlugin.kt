@@ -27,6 +27,7 @@ open class LanguageServerExtension {
     var languageClientPath: Path = Paths.get("")
     var packageDefinitionPath: Path = Paths.get("")
     var licensePath: Path = Paths.get("")
+    var symbolResolverPath: Path = Paths.get("")
 }
 
 class LanguageServerPlugin : Plugin<Project?> {
@@ -114,13 +115,15 @@ class LanguageServerPlugin : Plugin<Project?> {
         
                     import com.strumenta.$language.parser.${language.capitalized()}KolasuParser
                     import com.strumenta.kolasu.languageserver.library.KolasuServer
+                    import com.strumenta.kolasu.languageserver.library.ScopelessSymbolResolver
         
                     fun main(arguments: Array<String>) {
                         val language = arguments[0]
                         val fileExtensions = arguments[1].split(",")
+                        val symbolResolver = ScopelessSymbolResolver()
                         
                         val parser = ${language.capitalized()}KolasuParser()
-                        val server = KolasuServer(parser, language, fileExtensions)
+                        val server = KolasuServer(parser, language, fileExtensions, symbolResolver)
                         server.startCommunication()
                     }
                     """.trimIndent()
@@ -242,27 +245,5 @@ class LanguageServerPlugin : Plugin<Project?> {
             Files.writeString(Paths.get(root, "build", "vscode", "LICENSE.md"), "Copyright Strumenta SRL")
         }
         ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(Paths.get(project.projectDir.toString(), "build", "vscode").toFile()).redirectErrorStream(true).start().waitFor()
-    }
-
-    private fun createEntryPoint(project: Project) {
-        val root = project.projectDir.toString()
-        val language = extension.language
-
-        Files.createDirectories(Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver"))
-        Files.writeString(
-            Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver", "Main.kt"),
-            """
-            package com.strumenta.$language.languageserver
-
-            import com.strumenta.$language.parser.${language.capitalized()}KolasuParser
-            import com.strumenta.kolasu.languageserver.library.KolasuServer
-
-            fun main() {
-                val parser = ${language.capitalized()}KolasuParser()
-                val server = KolasuServer(parser)
-                server.startCommunication()
-            }
-            """.trimIndent()
-        )
     }
 }
