@@ -208,14 +208,11 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         val showASTWarnings = configuration["showASTWarnings"]?.asBoolean ?: false
         val showLeafPositions = configuration["showLeafPositions"]?.asBoolean ?: false
         val showParsingErrors = configuration["showParsingErrors"]?.asBoolean ?: true
-        val includeErrorNodeFoundIssues = configuration["includeErrorNodeFoundIssues"]?.asBoolean ?: false
 
         val diagnostics = ArrayList<Diagnostic>()
 
         if (showParsingErrors) {
             for (issue in parsingResult.issues) {
-                if (!includeErrorNodeFoundIssues && issue.message.startsWith("Error node found") || issue.position == null) continue
-
                 diagnostics.add(Diagnostic(toLSPRange(issue.position!!), issue.message))
             }
         }

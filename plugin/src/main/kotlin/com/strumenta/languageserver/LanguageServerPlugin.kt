@@ -175,11 +175,6 @@ class LanguageServerPlugin : Plugin<Project?> {
                                   "default": true,
                                   "description": "Show parsing errors produced by ANTLR."
                                 },
-                                "$language.includeErrorNodeFoundIssues": {
-                                  "type": "boolean",
-                                  "default": false,
-                                  "description": "Show the ANTLR issues that start with 'Error node found', usually duplicates."
-                                },
                                 "$language.showASTWarnings": {
                                   "type": "boolean",
                                   "default": false,
