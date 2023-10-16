@@ -11,6 +11,7 @@ import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
 import com.strumenta.kolasu.traversing.walk
+import org.apache.lucene.document.Document
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DiagnosticSeverity
@@ -93,6 +94,7 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
     protected var traceLevel: String = "off"
     protected val folders: MutableList<String> = mutableListOf()
     protected val files: MutableMap<String, ParsingResult<T>> = mutableMapOf()
+    protected val index: Document = Document()
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
