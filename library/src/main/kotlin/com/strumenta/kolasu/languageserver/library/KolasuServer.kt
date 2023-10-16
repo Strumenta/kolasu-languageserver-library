@@ -50,12 +50,10 @@ import org.eclipse.lsp4j.SetTraceParams
 import org.eclipse.lsp4j.ShowMessageRequestParams
 import org.eclipse.lsp4j.SymbolInformation
 import org.eclipse.lsp4j.SymbolKind
-import org.eclipse.lsp4j.TextDocumentEdit
 import org.eclipse.lsp4j.TextDocumentPositionParams
 import org.eclipse.lsp4j.TextDocumentSyncKind
 import org.eclipse.lsp4j.TextDocumentSyncOptions
 import org.eclipse.lsp4j.TextEdit
-import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
 import org.eclipse.lsp4j.WorkDoneProgressBegin
 import org.eclipse.lsp4j.WorkDoneProgressCreateParams
 import org.eclipse.lsp4j.WorkDoneProgressEnd
@@ -88,13 +86,13 @@ import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
-open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected val language: String = "", protected val extensions: List<String> = listOf(), private val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected val language: String = "", protected val extensions: List<String> = listOf(), protected val symbolResolver: SymbolResolver? = null, protected val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected lateinit var client: LanguageClient
     protected var configuration: JsonObject = JsonObject()
     protected var traceLevel: String = "off"
     protected val folders: MutableList<String> = mutableListOf()
-    protected val files: MutableMap<String, ProjectFile<T>> = mutableMapOf()
+    protected val files: MutableMap<String, ParsingResult<T>> = mutableMapOf()
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
@@ -127,6 +125,7 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
     }
 
     override fun initialized(params: InitializedParams?) {
+        data class DidChangeConfigurationRegistrationOptions(val section: String)
         val registrationParams = DidChangeConfigurationRegistrationOptions(language)
         client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeConfiguration", "workspace/didChangeConfiguration", registrationParams))))
 
@@ -201,8 +200,8 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
 
     private fun parseAndPublishDiagnostics(text: String, uri: String) {
         val parsingResult = parser.parse(text)
-        val symbols = resolveSymbols(parsingResult.root)
-        files[uri] = ProjectFile(parsingResult, symbols)
+        symbolResolver?.resolveSymbols(parsingResult.root)
+        files[uri] = parsingResult
 
         val tree = parsingResult.root ?: return
 
@@ -236,33 +235,9 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
         client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
     }
 
-    private fun resolveSymbols(root: Node?): MutableMap<String, Symbol> {
-        val tree = root ?: return mutableMapOf()
-        val symbols = mutableMapOf<String, Symbol>()
-        tree.walk().forEach { node ->
-            if (node is PossiblyNamed) {
-                node.name?.let {
-                    symbols.put(it, Symbol(node, mutableListOf(node)))
-                }
-            }
-        }
-        tree.walk().forEach { node ->
-            val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
-            referenceField?.javaField?.let { field ->
-                field.isAccessible = true
-                val value = field.get(node) as ReferenceByName<*>
-                val name = value.name
-                val symbol = symbols[name]
-                symbol?.references?.add(node)
-            }
-        }
-        return symbols
-    }
-
     override fun documentSymbol(params: DocumentSymbolParams?): CompletableFuture<MutableList<Either<SymbolInformation, DocumentSymbol>>> {
         val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
-        val projectFile = files[uri] ?: return CompletableFuture.completedFuture(null)
-        val root = projectFile.parsingResult.root ?: return CompletableFuture.completedFuture(null)
+        val root = files[uri]?.root ?: return CompletableFuture.completedFuture(null)
         val rootPosition = root.position ?: return CompletableFuture.completedFuture(null)
 
         val namedTree = DocumentSymbol("Named tree", SymbolKind.Variable, toLSPRange(rootPosition), toLSPRange(rootPosition), "", mutableListOf())
@@ -292,14 +267,14 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
 
     override fun definition(params: DefinitionParams?): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
         val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
-        val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
-        val projectFile = files[uri] ?: return CompletableFuture.completedFuture(null)
 
         val field = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }?.javaField ?: return CompletableFuture.completedFuture(null)
+        field.isAccessible = true
         val value = field.get(node) as ReferenceByName<*>
-        val symbol = projectFile.symbols[value.name] ?: return CompletableFuture.completedFuture(null)
-        val definition = symbol.definition as Node
+        val definition = value.referred as Node
         val definitionPosition = definition.position ?: return CompletableFuture.completedFuture(null)
+
+        val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null) // TODO support multiple files
 
         return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(toLSPLocation(definitionPosition, uri))))
     }
@@ -307,12 +282,14 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
     override fun references(params: ReferenceParams?): CompletableFuture<MutableList<out Location>> {
         val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
         val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
-        val projectFile = files[uri] ?: return CompletableFuture.completedFuture(null)
+        /*val projectFile = files[uri] ?: return CompletableFuture.completedFuture(null)
+
 
         val symbol = projectFile.symbols[node.sourceText] ?: return CompletableFuture.completedFuture(null)
         val locations = symbol.references.map { toLSPLocation(it.position!!, uri) }.toMutableList()
 
-        return CompletableFuture.completedFuture(locations)
+        return CompletableFuture.completedFuture(locations)*/
+        return CompletableFuture.completedFuture(mutableListOf())
     }
 
     override fun rename(params: RenameParams?): CompletableFuture<WorkspaceEdit> {
@@ -321,23 +298,21 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
         val projectFile = files[uri] ?: return CompletableFuture.completedFuture(null)
 
         val future = CompletableFuture<WorkspaceEdit>()
-        val confirmation = ShowMessageRequestParams(listOf(MessageActionItem("Yes"), MessageActionItem("No"))).apply {
-            this.type = MessageType.Info
-            this.message = "Are you sure?"
-        }
-        client.showMessageRequest(confirmation).thenApply { item ->
-            if (item.title == "No") {
+        requestOption("Are you sure", listOf("Yes", "No"), MessageType.Info).thenApply { selected ->
+            if (selected == "No") {
                 future.complete(null)
             }
-            val symbol = projectFile.symbols[node.sourceText]
-            if (symbol == null) {
-                future.complete(null)
-            }
-            val edits = symbol!!.references.map { rename(it, params.newName) }.toMutableList()
-            edits.reverse()
-            val textEdits = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, 0), edits)
-            future.complete(WorkspaceEdit(listOf(Either.forLeft(textEdits))))
+            future.complete(null)
         }
+        /*val symbol = projectFile.symbols[node.sourceText]
+        if (symbol == null) {
+            future.complete(null)
+        }
+        val edits = symbol!!.references.map { rename(it, params.newName) }.toMutableList()
+        edits.reverse()
+        val textEdits = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, 0), edits)
+        future.complete(WorkspaceEdit(listOf(Either.forLeft(textEdits))))
+        }*/
 
         return future
     }
@@ -359,8 +334,8 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
 
     private fun getNode(params: TextDocumentPositionParams?): Node? {
         if (params == null) return null
-        val ast = files[params.textDocument.uri] ?: return null
-        val root = ast.parsingResult.root ?: return null
+        val parsingResult = files[params.textDocument.uri] ?: return null
+        val root = parsingResult.root ?: return null
         return root.findByPosition(toKolasuRange(params.position))
     }
 
@@ -388,7 +363,7 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
 
     override fun didSave(params: DidSaveTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
-        val tree = files[uri]?.parsingResult?.root ?: return
+        val tree = files[uri]?.root ?: return
 
         generator?.generate(tree)
     }
@@ -405,12 +380,12 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
 
     override fun symbol(params: WorkspaceSymbolParams?): CompletableFuture<Either<MutableList<out SymbolInformation>, MutableList<out WorkspaceSymbol>>> {
         val symbols = mutableListOf<WorkspaceSymbol>()
-        for (file in files) {
+        /*for (file in files) {
             for (symbol in file.value.symbols) {
                 val definition = symbol.value.definition as Node
                 symbols.add(WorkspaceSymbol(symbol.key, symbolKindOf(definition), Either.forLeft(Location(file.key, toLSPRange(definition.position!!)))))
             }
-        }
+        }*/
         return CompletableFuture.completedFuture(Either.forRight(symbols))
     }
 
@@ -450,11 +425,24 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
         client.showMessage(MessageParams(MessageType.Info, text))
     }
 
-    data class ProjectFile<T : Node>(val parsingResult: ParsingResult<T>, val symbols: MutableMap<String, Symbol>)
-    data class Symbol(val definition: PossiblyNamed, val references: MutableList<Node>)
-    data class DidChangeConfigurationRegistrationOptions(val section: String)
+    protected open fun requestOption(messageText: String, options: List<String>, messageType: MessageType): CompletableFuture<String> {
+        val future = CompletableFuture<String>()
+
+        val request = ShowMessageRequestParams(options.map { MessageActionItem(it) }).apply {
+            type = messageType
+            message = messageText
+        }
+
+        client.showMessageRequest(request).thenApply { item -> future.complete(item.title) }
+
+        return future
+    }
 }
 
 interface CodeGenerator<T : Node> {
     fun generate(tree: T)
+}
+
+interface SymbolResolver {
+    fun resolveSymbols(tree: Node?)
 }
