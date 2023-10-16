@@ -17,12 +17,15 @@ import org.eclipse.lsp4j.DiagnosticSeverity
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams
+import org.eclipse.lsp4j.DidChangeWatchedFilesRegistrationOptions
 import org.eclipse.lsp4j.DidChangeWorkspaceFoldersParams
 import org.eclipse.lsp4j.DidCloseTextDocumentParams
 import org.eclipse.lsp4j.DidOpenTextDocumentParams
 import org.eclipse.lsp4j.DidSaveTextDocumentParams
 import org.eclipse.lsp4j.DocumentSymbol
 import org.eclipse.lsp4j.DocumentSymbolParams
+import org.eclipse.lsp4j.FileChangeType
+import org.eclipse.lsp4j.FileSystemWatcher
 import org.eclipse.lsp4j.Hover
 import org.eclipse.lsp4j.HoverParams
 import org.eclipse.lsp4j.InitializeParams
@@ -125,7 +128,13 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
 
     override fun initialized(params: InitializedParams?) {
         val registrationParams = DidChangeConfigurationRegistrationOptions(language)
-        client.registerCapability(RegistrationParams(listOf(Registration("myID", "workspace/didChangeConfiguration", registrationParams))))
+        client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeConfiguration", "workspace/didChangeConfiguration", registrationParams))))
+
+        val watchers = mutableListOf<FileSystemWatcher>()
+        for (folder in folders) {
+            watchers.add(FileSystemWatcher(Either.forLeft(URI(folder).path + "/**/*{${extensions.joinToString(","){ ".$it" }}")))
+        }
+        client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions(watchers)))))
     }
 
     override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
@@ -406,7 +415,27 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
     }
 
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
-        client.showMessage(MessageParams(MessageType.Info, "Change watched files"))
+        val changes = params?.changes ?: return
+        for (change in changes) {
+            when (change.type) {
+                FileChangeType.Created -> {
+                    val uri = change.uri
+                    val text = Files.readString(Paths.get(URI(uri)))
+
+                    parseAndPublishDiagnostics(text, uri)
+                }
+                FileChangeType.Changed -> {
+                    val uri = change.uri
+                    val text = Files.readString(Paths.get(URI(uri)))
+
+                    parseAndPublishDiagnostics(text, uri)
+                }
+                FileChangeType.Deleted -> {
+                    files.remove(change.uri)
+                }
+                null -> {}
+            }
+        }
     }
 
     override fun shutdown(): CompletableFuture<Any> {
@@ -415,6 +444,10 @@ open class KolasuServer<T : Node>(private val parser: ASTParser<T>, protected va
 
     override fun exit() {
         exitProcess(0)
+    }
+
+    protected open fun showMessage(text: String) {
+        client.showMessage(MessageParams(MessageType.Info, text))
     }
 
     data class ProjectFile<T : Node>(val parsingResult: ParsingResult<T>, val symbols: MutableMap<String, Symbol>)
