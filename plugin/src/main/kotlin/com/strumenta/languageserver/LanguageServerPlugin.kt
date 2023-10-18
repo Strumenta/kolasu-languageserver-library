@@ -6,6 +6,7 @@ import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.configurationcache.extensions.capitalized
+import org.jetbrains.kotlin.com.google.gson.JsonObject
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformJvmPlugin
 import org.jetbrains.kotlin.konan.file.File
 import java.nio.file.Files
@@ -17,16 +18,20 @@ import java.util.*
 open class LanguageServerExtension {
     var editor: String = ""
     var language: String = ""
+    var version: String = ""
+    var publisher: String = ""
     var fileExtensions: List<String> = listOf()
+    var textmateGrammarScope: String = ""
+    var entryPointPath: Path = Paths.get("")
     var serverJarPath: Path = Paths.get("")
     var examplesPath: Path = Paths.get("")
     var textmateGrammarPath: Path = Paths.get("")
-    var textmateGrammarScope: String = ""
     var logoPath: Path = Paths.get("")
     var fileIconPath: Path = Paths.get("")
     var languageClientPath: Path = Paths.get("")
     var packageDefinitionPath: Path = Paths.get("")
     var licensePath: Path = Paths.get("")
+    var outputPath: Path = Paths.get("")
 }
 
 class LanguageServerPlugin : Plugin<Project?> {
@@ -42,7 +47,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.repositories.add(project.repositories.mavenCentral())
         project.repositories.add(project.repositories.mavenLocal())
 
-        if (project.rootProject.subprojects.find { it.name == "ast" } != null) {
+        if (project.rootProject.subprojects.any { it.name == "ast" }) {
             project.dependencies.add("implementation", project.dependencies.project(mapOf("path" to ":ast")))
         }
         project.dependencies.add("implementation", "com.strumenta:language-server:0.0.0")
@@ -53,7 +58,28 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.dependencies.add("implementation", "org.apache.lucene:lucene-queryparser:9.8.0")
         project.dependencies.add("testImplementation", "org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
 
+        val projectPath = project.projectDir.toString()
         val language = project.rootProject.name
+
+        project.extensions.add("languageServer", LanguageServerExtension::class.java)
+        extension = project.extensions.getByType(LanguageServerExtension::class.java)
+        extension.language = language
+        extension.version = "0.0.0"
+        extension.publisher = "strumenta"
+        extension.fileExtensions = mutableListOf(language)
+        extension.editor = "code"
+        extension.serverJarPath = Paths.get(projectPath, "build", "libs", "$language.jar")
+        extension.examplesPath = Paths.get(project.rootDir.toString(), "examples")
+
+        extension.entryPointPath = Paths.get(projectPath, "src", "main", "kotlin", "com", "strumenta", language, "languageserver", "Main.kt")
+        extension.textmateGrammarPath = Paths.get(projectPath, "src", "main", "resources", "grammar.tmLanguage")
+        extension.textmateGrammarScope = "main"
+        extension.logoPath = Paths.get(projectPath, "src", "main", "resources", "logo.png")
+        extension.fileIconPath = Paths.get(projectPath, "src", "main", "resources", "fileIcon.png")
+        extension.languageClientPath = Paths.get(projectPath, "src", "main", "resources", "client.js")
+        extension.packageDefinitionPath = Paths.get(projectPath, "src", "main", "resources", "package.json")
+        extension.licensePath = Paths.get(projectPath, "src", "main", "resources", "LICENSE.md")
+        extension.outputPath = Paths.get(projectPath, "build", "vscode")
 
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
@@ -61,22 +87,6 @@ class LanguageServerPlugin : Plugin<Project?> {
         shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar lucene-codecs-9.8.0.jar"
         shadowJar.excludes.add("org/apache/lucene/**")
         shadowJar.archiveFileName.set("$language.jar")
-
-        project.extensions.add("languageServer", LanguageServerExtension::class.java)
-        extension = project.extensions.getByType(LanguageServerExtension::class.java)
-        extension.language = language
-        extension.fileExtensions = mutableListOf(language)
-        extension.editor = "code"
-        extension.serverJarPath = Paths.get(project.projectDir.toString(), "build", "libs", "$language.jar")
-        extension.examplesPath = Paths.get(project.rootDir.toString(), "examples")
-
-        extension.textmateGrammarPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "grammar.tmLanguage")
-        extension.textmateGrammarScope = "main"
-        extension.logoPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "logo.png")
-        extension.fileIconPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "fileIcon.png")
-        extension.languageClientPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "client.js")
-        extension.packageDefinitionPath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "package.json")
-        extension.licensePath = Paths.get(project.projectDir.toString(), "src", "main", "resources", "LICENSE.md")
 
         addCreateVscodeExtensionTask(project)
         addLaunchVscodeEditorTask(project)
@@ -100,25 +110,23 @@ class LanguageServerPlugin : Plugin<Project?> {
             group = "language server"
             description = "Create language server extension folder for vscode under build/vscode"
             actions = listOf(Action { _ -> try { createVscodeExtension(project) } catch (exception: Exception) { System.err.println(exception.message) } })
-            dependsOn.add(project.tasks.getByName("shadowJar"))
+            dependsOn(project.tasks.getByName("shadowJar"))
+            inputs.files(extension.entryPointPath, extension.textmateGrammarPath, extension.logoPath, extension.fileIconPath, extension.languageClientPath, extension.packageDefinitionPath, extension.licensePath).optional()
+            outputs.dirs(extension.outputPath)
         }
     }
 
     private fun createVscodeExtension(project: Project) {
-        val root = project.projectDir.toString()
-        val language = extension.language
-
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         val entryPoint = shadowJar.manifest.attributes["Main-Class"] as String
-        if (entryPoint == "com.strumenta.$language.languageserver.MainKt") {
-            if (!Files.exists(Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver", "Main.kt"))) {
-                Files.createDirectories(Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver"))
-                Files.writeString(
-                    Paths.get(root, "src", "main", "kotlin", "com", "strumenta", language, "languageserver", "Main.kt"),
+        if (entryPoint == "com.strumenta.${extension.language}.languageserver.MainKt") {
+            if (!Files.exists(extension.entryPointPath)) {
+                Files.createDirectories(extension.entryPointPath.parent)
+                Files.writeString(extension.entryPointPath,
                     """
-                    package com.strumenta.$language.languageserver
+                    package com.strumenta.${extension.language}.languageserver
         
-                    import com.strumenta.$language.parser.${language.capitalized()}KolasuParser
+                    import com.strumenta.${extension.language}.parser.${extension.language.capitalized()}KolasuParser
                     import com.strumenta.kolasu.languageserver.library.KolasuServer
                     import com.strumenta.kolasu.languageserver.library.ScopelessSymbolResolver
         
@@ -127,7 +135,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                         val fileExtensions = arguments[1].split(",")
                         val symbolResolver = ScopelessSymbolResolver()
                         
-                        val parser = ${language.capitalized()}KolasuParser()
+                        val parser = ${extension.language.capitalized()}KolasuParser()
                         val server = KolasuServer(parser, language, fileExtensions, symbolResolver)
                         server.startCommunication()
                     }
@@ -136,10 +144,10 @@ class LanguageServerPlugin : Plugin<Project?> {
             }
         }
 
-        Files.createDirectories(Paths.get(root, "build", "vscode"))
+        Files.createDirectories(extension.outputPath)
 
         if (Files.exists(extension.packageDefinitionPath)) {
-            Files.copy(extension.packageDefinitionPath, Paths.get(root, "build", "vscode", "package.json"), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(extension.packageDefinitionPath, Paths.get(extension.outputPath.toString(), "package.json"), StandardCopyOption.REPLACE_EXISTING)
         } else {
             var grammars = ""
             if (Files.exists(extension.textmateGrammarPath)) {
@@ -147,7 +155,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                 ,
                 "grammars":
                 [
-                    {"language": "$language", "scopeName": "${extension.textmateGrammarScope}", "path": "./grammar.tmLanguage"}
+                    {"language": "${extension.language}", "scopeName": "${extension.textmateGrammarScope}", "path": "./grammar.tmLanguage"}
                 ]
                 """.trimIndent()
             }
@@ -163,32 +171,32 @@ class LanguageServerPlugin : Plugin<Project?> {
             }
 
             Files.writeString(
-                Paths.get(root, "build", "vscode", "package.json"),
+                Paths.get(extension.outputPath.toString(), "package.json"),
                 """
                 {
-                    "name": "${language.lowercase(Locale.getDefault())}",
-                    "version": "0.0.0",$logo
-                    "publisher": "strumenta",
+                    "name": "${extension.language.lowercase(Locale.getDefault())}",
+                    "version": "${extension.version}",$logo
+                    "publisher": "${extension.publisher}",
                     "contributes":
                     {
                         "languages":
                         [
-                            {"id": "$language", "extensions": ["${extension.fileExtensions.joinToString("\", \""){ ".$it" }}"]$fileIcon}
+                            {"id": "${extension.language}", "extensions": ["${extension.fileExtensions.joinToString("\", \""){ ".$it" }}"]$fileIcon}
                         ],
                         "configuration": {
-                            "title": "${language.capitalized()}",
+                            "title": "${extension.language.capitalized()}",
                             "properties": {
-                                "$language.showParsingErrors": {
+                                "${extension.language}.showParsingErrors": {
                                   "type": "boolean",
                                   "default": true,
                                   "description": "Show parsing errors produced by ANTLR."
                                 },
-                                "$language.showASTWarnings": {
+                                "${extension.language}.showASTWarnings": {
                                   "type": "boolean",
                                   "default": false,
                                   "description": "Show warnings for ast inconsistencies."
                                 },
-                                "$language.showLeafPositions": {
+                                "${extension.language}.showLeafPositions": {
                                   "type": "boolean",
                                   "default": false,
                                   "description": "Show all leaves' positions."
@@ -197,7 +205,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                         }$grammars
                     },
                     "engines": {"vscode": "^1.52.0"},
-                    "activationEvents": ["onLanguage:$language"],
+                    "activationEvents": ["onLanguage:${extension.language}"],
                     "main": "client.js"
                 }
                 """.trimIndent()
@@ -205,18 +213,18 @@ class LanguageServerPlugin : Plugin<Project?> {
         }
 
         if (Files.exists(extension.languageClientPath)) {
-            Files.copy(extension.languageClientPath, Paths.get(root, "build", "vscode", "client.js"), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(extension.languageClientPath, Paths.get(extension.outputPath.toString(), "client.js"), StandardCopyOption.REPLACE_EXISTING)
         } else {
             Files.writeString(
-                Paths.get(root, "build", "vscode", "client.js"),
+                Paths.get(extension.outputPath.toString(), "client.js"),
                 """
                 let {LanguageClient} = require("../node_modules/vscode-languageclient/node");
         
                 async function activate (context)
                 {
-                    let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar"), "$language", "${extension.fileExtensions.joinToString(",")}"]}};
+                    let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar"), "${extension.language}", "${extension.fileExtensions.joinToString(",")}"]}};
         
-                    let languageClient = new LanguageClient("$language", "$language language server", productionServer, {documentSelector: ["$language"]});
+                    let languageClient = new LanguageClient("${extension.language}", "${extension.language} language server", productionServer, {documentSelector: ["${extension.language}"]});
                     await languageClient.start();
         
                     context.subscriptions.push(languageClient);
@@ -227,31 +235,31 @@ class LanguageServerPlugin : Plugin<Project?> {
             )
         }
 
-        Files.copy(extension.serverJarPath, Paths.get(root, "build", "vscode", "server.jar"), StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(extension.serverJarPath, Paths.get(extension.outputPath.toString(), "server.jar"), StandardCopyOption.REPLACE_EXISTING)
 
         ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").directory(project.projectDir).start().waitFor()
         ProcessBuilder("npx", "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
 
         if (Files.exists(extension.textmateGrammarPath)) {
-            Files.copy(extension.textmateGrammarPath, Paths.get(root, "build", "vscode", "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(extension.textmateGrammarPath, Paths.get(extension.outputPath.toString(), "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
         }
 
         if (Files.exists(extension.logoPath)) {
-            Files.copy(extension.logoPath, Paths.get(root, "build", "vscode", "logo.png"), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(extension.logoPath, Paths.get(extension.outputPath.toString(), "logo.png"), StandardCopyOption.REPLACE_EXISTING)
         }
 
         if (Files.exists(extension.fileIconPath)) {
-            Files.copy(extension.fileIconPath, Paths.get(root, "build", "vscode", "fileIcon.png"), StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(extension.fileIconPath, Paths.get(extension.outputPath.toString(), "fileIcon.png"), StandardCopyOption.REPLACE_EXISTING)
         }
 
         if (Files.exists(extension.licensePath)) {
-            Files.copy(extension.licensePath, Paths.get(root, "build", "vscode", "LICENSE.md"))
+            Files.copy(extension.licensePath, Paths.get(extension.outputPath.toString(), "LICENSE.md"))
         } else {
-            Files.writeString(Paths.get(root, "build", "vscode", "LICENSE.md"), "Copyright Strumenta SRL")
+            Files.writeString(Paths.get(extension.outputPath.toString(), "LICENSE.md"), "Copyright Strumenta SRL")
         }
-        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar", "-o", Paths.get(project.projectDir.toString(), "build", "vscode", "lucene-core-9.8.0.jar").toString()).start().waitFor()
-        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar", "-o", Paths.get(project.projectDir.toString(), "build", "vscode", "lucene-codecs-9.8.0.jar").toString()).start().waitFor()
+        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-core-9.8.0.jar").toString()).start().waitFor()
+        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()).start().waitFor()
 
-        ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(Paths.get(project.projectDir.toString(), "build", "vscode").toFile()).redirectErrorStream(true).start().waitFor()
+        ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(extension.outputPath.toFile()).start().waitFor()
     }
 }
