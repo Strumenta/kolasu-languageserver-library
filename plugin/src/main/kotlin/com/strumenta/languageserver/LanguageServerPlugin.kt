@@ -49,12 +49,18 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.dependencies.add("implementation", "com.strumenta:language-server:0.0.0")
         project.dependencies.add("implementation", "com.strumenta.kolasu:kolasu-core:1.5.31")
         project.dependencies.add("implementation", "org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
+        project.dependencies.add("implementation", "org.apache.lucene:lucene-core:9.8.0")
+        project.dependencies.add("implementation", "org.apache.lucene:lucene-core:9.8.0")
+        project.dependencies.add("implementation", "org.apache.lucene:lucene-queryparser:9.8.0")
         project.dependencies.add("testImplementation", "org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
 
         val language = project.rootProject.name
 
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
+        shadowJar.manifest.attributes["Multi-Release"] = "true"
+        shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar lucene-codecs-9.8.0.jar"
+        shadowJar.excludes.add("org/apache/lucene/**")
         shadowJar.archiveFileName.set("$language.jar")
 
         project.extensions.add("languageServer", LanguageServerExtension::class.java)
