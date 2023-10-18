@@ -13,6 +13,8 @@ dependencies {
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.5.21")
     implementation("org.apache.lucene:lucene-core:9.8.0")
+    implementation("org.apache.lucene:lucene-queryparser:9.8.0")
+    implementation("org.apache.lucene:lucene-codecs:9.8.0")
 }
 
 group = "com.strumenta"

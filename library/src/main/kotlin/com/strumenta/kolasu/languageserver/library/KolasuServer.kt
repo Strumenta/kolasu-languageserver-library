@@ -11,7 +11,21 @@ import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
 import com.strumenta.kolasu.traversing.walk
+import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.Document
+import org.apache.lucene.document.Field
+import org.apache.lucene.document.IntField
+import org.apache.lucene.document.IntPoint
+import org.apache.lucene.document.StringField
+import org.apache.lucene.document.TextField
+import org.apache.lucene.index.DirectoryReader
+import org.apache.lucene.index.IndexReader
+import org.apache.lucene.index.IndexWriter
+import org.apache.lucene.index.IndexWriterConfig
+import org.apache.lucene.search.BooleanClause
+import org.apache.lucene.search.BooleanQuery
+import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.store.FSDirectory
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DiagnosticSeverity
@@ -34,6 +48,7 @@ import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
+import org.eclipse.lsp4j.LogTraceParams
 import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams
@@ -48,6 +63,7 @@ import org.eclipse.lsp4j.RegistrationParams
 import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
+import org.eclipse.lsp4j.ShowDocumentParams
 import org.eclipse.lsp4j.ShowMessageRequestParams
 import org.eclipse.lsp4j.SymbolInformation
 import org.eclipse.lsp4j.SymbolKind
@@ -94,7 +110,7 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
     protected var traceLevel: String = "off"
     protected val folders: MutableList<String> = mutableListOf()
     protected val files: MutableMap<String, ParsingResult<T>> = mutableMapOf()
-    protected val index: Document = Document()
+    protected val indexPath: Path = Paths.get("indexes")
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
@@ -133,7 +149,7 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
 
         val watchers = mutableListOf<FileSystemWatcher>()
         for (folder in folders) {
-            watchers.add(FileSystemWatcher(Either.forLeft(URI(folder).path + "/**/*{${extensions.joinToString(","){ ".$it" }}")))
+            watchers.add(FileSystemWatcher(Either.forLeft(URI(folder).path + """/**/*{${extensions.joinToString(","){".$it"}}}""")))
         }
         client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions(watchers)))))
     }
@@ -146,6 +162,14 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing"; message = "0 out of 5"; })))
         client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { percentage = 0 })))
         for (folder in folders) {
+            if (Files.exists(indexPath)) {
+                indexPath.toFile().deleteRecursively()
+            }
+            val indexDirectory = FSDirectory.open(indexPath)
+            val indexConfiguration = IndexWriterConfig(StandardAnalyzer())
+            indexConfiguration.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND)
+            val indexWriter = IndexWriter(indexDirectory, indexConfiguration)
+
             val projectFiles = mutableListOf<Path>()
             projectFilesIn(Paths.get(URI(folder)), projectFiles)
 
@@ -155,11 +179,12 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
                 val uri = file.toUri().toString()
                 val text = Files.readString(file)
 
-                parseAndPublishDiagnostics(text, uri)
+                parseAndPublishDiagnostics(text, uri, indexWriter)
                 parsedBytes += file.fileSize()
                 val percentage = (parsedBytes * 100 / totalBytes).toInt()
                 client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { this.percentage = percentage })))
             }
+            indexWriter.close()
         }
         client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressEnd())))
     }
@@ -183,29 +208,54 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         val uri = params?.textDocument?.uri ?: return
         val text = params.textDocument.text
 
-        parseAndPublishDiagnostics(text, uri)
+        // parseAndPublishDiagnostics(text, uri)
     }
 
     override fun didChange(params: DidChangeTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = params.contentChanges.first()?.text ?: return
 
-        parseAndPublishDiagnostics(text, uri)
+        // parseAndPublishDiagnostics(text, uri)
     }
 
     override fun didClose(params: DidCloseTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = Files.readString(Paths.get(URI(uri)))
 
-        parseAndPublishDiagnostics(text, uri)
+        // parseAndPublishDiagnostics(text, uri)
     }
 
-    private fun parseAndPublishDiagnostics(text: String, uri: String) {
+    protected open fun parseAndPublishDiagnostics(text: String, uri: String, indexWriter: IndexWriter) {
         val parsingResult = parser.parse(text)
         symbolResolver?.resolveSymbols(parsingResult.root)
         files[uri] = parsingResult
 
         val tree = parsingResult.root ?: return
+
+        for (node in tree.walk()) {
+            val document = Document()
+            document.add(StringField("uri", uri, Field.Store.YES))
+            node.position?.let { position ->
+                document.add(IntField("startLine", position.start.line, Field.Store.YES))
+                document.add(IntField("startColumn", position.start.column, Field.Store.YES))
+                document.add(IntField("endLine", position.end.line, Field.Store.YES))
+                document.add(IntField("endColumn", position.end.column, Field.Store.YES))
+            }
+
+            if (node is PossiblyNamed && node.name != null) {
+                document.add(StringField("name", node.name, Field.Store.YES))
+            }
+
+            val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
+            referenceField?.javaField?.let { field ->
+                field.isAccessible = true
+                val value = field.get(node) as ReferenceByName<*>
+
+                document.add(TextField("referenceTo", value.name, Field.Store.YES))
+            }
+
+            indexWriter.addDocument(document)
+        }
 
         val showASTWarnings = configuration["showASTWarnings"]?.asBoolean ?: false
         val showLeafPositions = configuration["showLeafPositions"]?.asBoolean ?: false
@@ -297,8 +347,8 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         val projectFile = files[uri] ?: return CompletableFuture.completedFuture(null)
 
         val future = CompletableFuture<WorkspaceEdit>()
-        requestOption("Are you sure", listOf("Yes", "No"), MessageType.Info).thenApply { selected ->
-            if (selected == "No") {
+        askClient("Are you sure").thenApply { answer ->
+            if (answer == "No") {
                 future.complete(null)
             }
             future.complete(null)
@@ -324,7 +374,22 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
         val information = informationFor(node)
 
-        return CompletableFuture.completedFuture(Hover(MarkupContent("markdown", information)))
+        val indexDirectory = FSDirectory.open(indexPath)
+        val reader: IndexReader = DirectoryReader.open(indexDirectory)
+        val searcher = IndexSearcher(reader)
+
+        val query = BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("startLine", Int.MIN_VALUE, node.position!!.start.line), BooleanClause.Occur.MUST)
+            .add(IntPoint.newRangeQuery("endLine", node.position!!.end.line, Int.MAX_VALUE), BooleanClause.Occur.MUST)
+            .add(IntPoint.newRangeQuery("startColumn", Int.MIN_VALUE, node.position!!.start.column), BooleanClause.Occur.MUST)
+            .add(IntPoint.newRangeQuery("endColumn", node.position!!.end.column, Int.MAX_VALUE), BooleanClause.Occur.MUST)
+            .build()
+
+        val results = searcher.search(query, 1)
+        val result = results.scoreDocs.first() ?: return CompletableFuture.completedFuture(null)
+        val document = searcher.storedFields().document(result.doc)
+
+        return CompletableFuture.completedFuture(Hover(MarkupContent("markdown", document.get("name"))))
     }
 
     protected open fun informationFor(node: Node): String {
@@ -396,13 +461,13 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
-                    parseAndPublishDiagnostics(text, uri)
+                    // parseAndPublishDiagnostics(text, uri)
                 }
                 FileChangeType.Changed -> {
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
-                    parseAndPublishDiagnostics(text, uri)
+                    // parseAndPublishDiagnostics(text, uri)
                 }
                 FileChangeType.Deleted -> {
                     files.remove(change.uri)
@@ -420,11 +485,15 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         exitProcess(0)
     }
 
-    protected open fun showMessage(text: String) {
-        client.showMessage(MessageParams(MessageType.Info, text))
+    protected open fun log(text: String, verboseExplanation: String? = null) {
+        client.logTrace(LogTraceParams(text, verboseExplanation))
     }
 
-    protected open fun requestOption(messageText: String, options: List<String>, messageType: MessageType): CompletableFuture<String> {
+    protected open fun showNotification(text: String, messageType: MessageType = MessageType.Info) {
+        client.showMessage(MessageParams(messageType, text))
+    }
+
+    protected open fun askClient(messageText: String, options: List<String> = listOf("Yes", "No"), messageType: MessageType = MessageType.Info): CompletableFuture<String> {
         val future = CompletableFuture<String>()
 
         val request = ShowMessageRequestParams(options.map { MessageActionItem(it) }).apply {
@@ -435,6 +504,10 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         client.showMessageRequest(request).thenApply { item -> future.complete(item.title) }
 
         return future
+    }
+
+    protected open fun showDocument() {
+        client.showDocument(ShowDocumentParams())
     }
 }
 
