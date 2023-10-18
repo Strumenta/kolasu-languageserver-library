@@ -27,7 +27,6 @@ open class LanguageServerExtension {
     var languageClientPath: Path = Paths.get("")
     var packageDefinitionPath: Path = Paths.get("")
     var licensePath: Path = Paths.get("")
-    var symbolResolverPath: Path = Paths.get("")
 }
 
 class LanguageServerPlugin : Plugin<Project?> {
@@ -250,6 +249,9 @@ class LanguageServerPlugin : Plugin<Project?> {
         } else {
             Files.writeString(Paths.get(root, "build", "vscode", "LICENSE.md"), "Copyright Strumenta SRL")
         }
+        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar", "-o", Paths.get(project.projectDir.toString(), "build", "vscode", "lucene-core-9.8.0.jar").toString()).start().waitFor()
+        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar", "-o", Paths.get(project.projectDir.toString(), "build", "vscode", "lucene-codecs-9.8.0.jar").toString()).start().waitFor()
+
         ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(Paths.get(project.projectDir.toString(), "build", "vscode").toFile()).redirectErrorStream(true).start().waitFor()
     }
 }
