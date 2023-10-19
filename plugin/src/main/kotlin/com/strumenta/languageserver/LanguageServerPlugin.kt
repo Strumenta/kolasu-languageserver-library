@@ -83,7 +83,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
         shadowJar.manifest.attributes["Multi-Release"] = "true"
-        shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar lucene-codecs-9.8.0.jar"
+        shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar lucene-codecs-9.8.0.jar lucene-queryparser-9.8.0.jar"
         shadowJar.excludes.add("org/apache/lucene/**")
         shadowJar.archiveFileName.set("$language.jar")
 
@@ -259,6 +259,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         }
         ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-core-9.8.0.jar").toString()).start().waitFor()
         ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()).start().waitFor()
+        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-queryparser/9.8.0/lucene-queryparser-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-queryparser-9.8.0.jar").toString()).start().waitFor()
 
         ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(extension.outputPath.toFile()).start().waitFor()
     }
