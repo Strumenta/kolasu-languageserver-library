@@ -63,7 +63,6 @@ import org.eclipse.lsp4j.RegistrationParams
 import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
-import org.eclipse.lsp4j.ShowDocumentParams
 import org.eclipse.lsp4j.ShowMessageRequestParams
 import org.eclipse.lsp4j.SymbolInformation
 import org.eclipse.lsp4j.SymbolKind
@@ -103,19 +102,19 @@ import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
-open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected val language: String = "", protected val extensions: List<String> = listOf(), protected val symbolResolver: SymbolResolver? = null, protected val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, protected open val language: String = "", protected open val extensions: List<String> = listOf(), protected open val symbolResolver: SymbolResolver? = null, protected open val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
-    protected lateinit var client: LanguageClient
-    protected var configuration: JsonObject = JsonObject()
-    protected var traceLevel: String = "off"
-    protected val folders: MutableList<String> = mutableListOf()
-    protected val files: MutableMap<String, ParsingResult<T>> = mutableMapOf()
-    protected val indexPath: Path = Paths.get("indexes")
+    protected open lateinit var client: LanguageClient
+    protected open var configuration: JsonObject = JsonObject()
+    protected open var traceLevel: String = "off"
+    protected open val folders: MutableList<String> = mutableListOf()
+    protected open val files: MutableMap<String, ParsingResult<T>> = mutableMapOf()
+    protected open val indexPath: Path = Paths.get("indexes")
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
 
-    fun startCommunication(inputStream: InputStream = System.`in`, outputStream: OutputStream = System.out) {
+    open fun startCommunication(inputStream: InputStream = System.`in`, outputStream: OutputStream = System.out) {
         val launcher = LSPLauncher.createServerLauncher(this, inputStream, outputStream)
         connect(launcher.remoteProxy)
         launcher.startListening()
@@ -225,7 +224,7 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         // parseAndPublishDiagnostics(text, uri)
     }
 
-    public open fun parseAndPublishDiagnostics(text: String, uri: String, indexWriter: IndexWriter) {
+    open fun parseAndPublishDiagnostics(text: String, uri: String, indexWriter: IndexWriter) {
         val parsingResult = parser.parse(text)
         symbolResolver?.resolveSymbols(parsingResult.root)
         files[uri] = parsingResult
@@ -295,7 +294,7 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         return CompletableFuture.completedFuture(mutableListOf(Either.forRight(namedTree)))
     }
 
-    private fun appendNamedChildren(node: Node, parent: DocumentSymbol) {
+    protected open fun appendNamedChildren(node: Node, parent: DocumentSymbol) {
         var nextParent = parent
         if (node is PossiblyNamed && node.name != null) {
             node.position?.let {
@@ -310,7 +309,7 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         }
     }
 
-    open fun symbolKindOf(node: Node): SymbolKind {
+    protected open fun symbolKindOf(node: Node): SymbolKind {
         return SymbolKind.Variable
     }
 
@@ -323,7 +322,7 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         val definition = value.referred as Node
         val definitionPosition = definition.position ?: return CompletableFuture.completedFuture(null)
 
-        val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null) // TODO support multiple files
+        val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
 
         return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(toLSPLocation(definitionPosition, uri))))
     }
@@ -396,30 +395,30 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         return node.simpleNodeType
     }
 
-    private fun getNode(params: TextDocumentPositionParams?): Node? {
+    protected open fun getNode(params: TextDocumentPositionParams?): Node? {
         if (params == null) return null
         val parsingResult = files[params.textDocument.uri] ?: return null
         val root = parsingResult.root ?: return null
         return root.findByPosition(toKolasuRange(params.position))
     }
 
-    protected fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
+    protected open fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
         val start = Position(kolasuRange.start.line - 1, kolasuRange.start.column)
         val end = Position(kolasuRange.end.line - 1, kolasuRange.end.column)
         return Range(start, end)
     }
 
-    protected fun toLSPLocation(position: com.strumenta.kolasu.model.Position, uri: String): Location {
+    protected open fun toLSPLocation(position: com.strumenta.kolasu.model.Position, uri: String): Location {
         val range = toLSPRange(position)
         val source = position.source
-        if (source is FileSource) {
-            return Location(source.file.toURI().toString(), range)
+        return if (source is FileSource) {
+            Location(source.file.toURI().toString(), range)
         } else {
-            return Location(uri, range)
+            Location(uri, range)
         }
     }
 
-    protected fun toKolasuRange(position: Position): com.strumenta.kolasu.model.Position {
+    protected open fun toKolasuRange(position: Position): com.strumenta.kolasu.model.Position {
         val start = Point(position.line + 1, position.character)
         val end = Point(position.line + 1, position.character)
         return com.strumenta.kolasu.model.Position(start, end)
@@ -504,10 +503,6 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         client.showMessageRequest(request).thenApply { item -> future.complete(item.title) }
 
         return future
-    }
-
-    protected open fun showDocument() {
-        client.showDocument(ShowDocumentParams())
     }
 }
 
