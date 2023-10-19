@@ -225,7 +225,7 @@ open class KolasuServer<T : Node>(protected val parser: ASTParser<T>, protected 
         // parseAndPublishDiagnostics(text, uri)
     }
 
-    protected open fun parseAndPublishDiagnostics(text: String, uri: String, indexWriter: IndexWriter) {
+    public open fun parseAndPublishDiagnostics(text: String, uri: String, indexWriter: IndexWriter) {
         val parsingResult = parser.parse(text)
         symbolResolver?.resolveSymbols(parsingResult.root)
         files[uri] = parsingResult

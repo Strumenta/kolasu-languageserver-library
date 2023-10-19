@@ -6,7 +6,6 @@ import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.configurationcache.extensions.capitalized
-import org.jetbrains.kotlin.com.google.gson.JsonObject
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformJvmPlugin
 import org.jetbrains.kotlin.konan.file.File
 import java.nio.file.Files
@@ -122,7 +121,8 @@ class LanguageServerPlugin : Plugin<Project?> {
         if (entryPoint == "com.strumenta.${extension.language}.languageserver.MainKt") {
             if (!Files.exists(extension.entryPointPath)) {
                 Files.createDirectories(extension.entryPointPath.parent)
-                Files.writeString(extension.entryPointPath,
+                Files.writeString(
+                    extension.entryPointPath,
                     """
                     package com.strumenta.${extension.language}.languageserver
         

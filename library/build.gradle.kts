@@ -6,6 +6,14 @@ plugins {
 
 repositories {
     mavenCentral()
+    maven {
+        name = project.name
+        url = uri("https://maven.pkg.github.com/Strumenta/rpg-parser")
+        credentials {
+            username = project.findProperty("starlasu.github.user").toString()
+            password = project.findProperty("starlasu.github.token").toString()
+        }
+    }
 }
 
 dependencies {
@@ -15,6 +23,10 @@ dependencies {
     implementation("org.apache.lucene:lucene-core:9.8.0")
     implementation("org.apache.lucene:lucene-queryparser:9.8.0")
     implementation("org.apache.lucene:lucene-codecs:9.8.0")
+
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
+    testImplementation("com.strumenta:rpg-parser:2.1.30")
+    testImplementation("com.strumenta:rpg-parser-symbol-resolution:2.1.30")
 }
 
 group = "com.strumenta"
