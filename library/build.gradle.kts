@@ -10,8 +10,8 @@ repositories {
         name = project.name
         url = uri("https://maven.pkg.github.com/Strumenta/rpg-parser")
         credentials {
-            username = project.findProperty("starlasu.github.user").toString()
-            password = project.findProperty("starlasu.github.token").toString()
+            username = (if (extra.has("starlasu.github.user")) extra["starlasu.github.user"] else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
+            password = (if (extra.has("starlasu.github.token")) extra["starlasu.github.token"] else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
         }
     }
 }
@@ -38,8 +38,8 @@ publishing {
             name = "GitHubPackages"
             url = uri("https://maven.pkg.github.com/Strumenta/kolasu-languageserver-library")
             credentials {
-                username = project.findProperty("starlasu.github.user").toString()
-                password = project.findProperty("starlasu.github.token").toString()
+                username = (if (extra.has("starlasu.github.user")) extra["starlasu.github.user"] else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
+                password = (if (extra.has("starlasu.github.token")) extra["starlasu.github.token"] else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
             }
         }
     }
