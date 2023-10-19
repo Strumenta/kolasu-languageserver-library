@@ -22,9 +22,15 @@ import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.index.IndexReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
+import org.apache.lucene.index.Term
+import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser
 import org.apache.lucene.search.BooleanClause
 import org.apache.lucene.search.BooleanQuery
 import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.search.Sort
+import org.apache.lucene.search.SortField
+import org.apache.lucene.search.SortedNumericSortField
+import org.apache.lucene.search.TermQuery
 import org.apache.lucene.store.FSDirectory
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.Diagnostic
@@ -239,6 +245,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
                 document.add(IntField("startColumn", position.start.column, Field.Store.YES))
                 document.add(IntField("endLine", position.end.line, Field.Store.YES))
                 document.add(IntField("endColumn", position.end.column, Field.Store.YES))
+                document.add(IntField("size", sizeOf(position), Field.Store.YES))
             }
 
             if (node is PossiblyNamed && node.name != null) {
@@ -281,6 +288,14 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
             }
         }
         client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
+    }
+
+    protected open fun sizeOf(position: com.strumenta.kolasu.model.Position): Int {
+        val lineDifference = position.end.line - position.start.line
+        val lineValue = lineDifference * 8000
+        val columnDifference = position.end.column - position.start.column
+
+        return lineValue + columnDifference
     }
 
     override fun documentSymbol(params: DocumentSymbolParams?): CompletableFuture<MutableList<Either<SymbolInformation, DocumentSymbol>>> {
@@ -370,29 +385,37 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     }
 
     override fun hover(params: HoverParams?): CompletableFuture<Hover> {
-        val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
-        val information = informationFor(node)
+        val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
+        val information = informationFor(document)
+        return CompletableFuture.completedFuture(Hover(MarkupContent("markdown", information)))
+    }
+
+    protected open fun informationFor(document: Document): String {
+        return document.get("size")
+    }
+
+    protected open fun getDocument(params: TextDocumentPositionParams?): Document? {
+        val uri = params?.textDocument?.uri ?: return null
+        val position = params.position
 
         val indexDirectory = FSDirectory.open(indexPath)
         val reader: IndexReader = DirectoryReader.open(indexDirectory)
         val searcher = IndexSearcher(reader)
 
         val query = BooleanQuery.Builder()
-            .add(IntPoint.newRangeQuery("startLine", Int.MIN_VALUE, node.position!!.start.line), BooleanClause.Occur.MUST)
-            .add(IntPoint.newRangeQuery("endLine", node.position!!.end.line, Int.MAX_VALUE), BooleanClause.Occur.MUST)
-            .add(IntPoint.newRangeQuery("startColumn", Int.MIN_VALUE, node.position!!.start.column), BooleanClause.Occur.MUST)
-            .add(IntPoint.newRangeQuery("endColumn", node.position!!.end.column, Int.MAX_VALUE), BooleanClause.Occur.MUST)
+            .add(TermQuery(Term("uri", uri)), BooleanClause.Occur.MUST)
+            .add(IntPoint.newRangeQuery("startLine", Int.MIN_VALUE, position.line), BooleanClause.Occur.MUST)
+            .add(IntPoint.newRangeQuery("endLine", position.line, Int.MAX_VALUE), BooleanClause.Occur.MUST)
+            .add(IntPoint.newRangeQuery("startColumn", Int.MIN_VALUE, position.character), BooleanClause.Occur.MUST)
+            .add(IntPoint.newRangeQuery("endColumn", position.character, Int.MAX_VALUE), BooleanClause.Occur.MUST)
             .build()
 
-        val results = searcher.search(query, 1)
-        val result = results.scoreDocs.first() ?: return CompletableFuture.completedFuture(null)
-        val document = searcher.storedFields().document(result.doc)
+        val valueSort = SortedNumericSortField("size", SortField.Type.INT, true)
+        val results = searcher.search(query, 100, Sort(valueSort))
+        if (results.scoreDocs.isEmpty()) return null
+        val result = results.scoreDocs.first()
 
-        return CompletableFuture.completedFuture(Hover(MarkupContent("markdown", document.get("name"))))
-    }
-
-    protected open fun informationFor(node: Node): String {
-        return node.simpleNodeType
+        return searcher.storedFields().document(result.doc)
     }
 
     protected open fun getNode(params: TextDocumentPositionParams?): Node? {
