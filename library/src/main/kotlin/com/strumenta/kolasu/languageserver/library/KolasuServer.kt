@@ -142,10 +142,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val indexDirectory = FSDirectory.open(indexPath)
         val indexConfiguration = IndexWriterConfig(StandardAnalyzer()).apply { openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND }
         indexWriter = IndexWriter(indexDirectory, indexConfiguration)
-        indexWriter.commit()
-
-        val reader = DirectoryReader.open(indexDirectory)
-        indexSearcher = IndexSearcher(reader)
+        commitIndex()
 
         val capabilities = ServerCapabilities()
         capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
@@ -157,6 +154,12 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         capabilities.setHoverProvider(true)
         capabilities.setWorkspaceSymbolProvider(true)
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
+    }
+
+    protected open fun commitIndex() {
+        indexWriter.commit()
+        val reader = DirectoryReader.open(FSDirectory.open(indexPath))
+        indexSearcher = IndexSearcher(reader)
     }
 
     override fun initialized(params: InitializedParams?) {
@@ -214,7 +217,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val uri = params?.textDocument?.uri ?: return
         val text = params.textDocument.text
 
-        invalidateIndexURI(uri)
         parseAndPublishDiagnostics(text, uri)
     }
 
@@ -222,7 +224,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val uri = params?.textDocument?.uri ?: return
         val text = params.contentChanges.first()?.text ?: return
 
-        invalidateIndexURI(uri)
         parseAndPublishDiagnostics(text, uri)
     }
 
@@ -230,12 +231,12 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val uri = params?.textDocument?.uri ?: return
         val text = Files.readString(Paths.get(URI(uri)))
 
-        invalidateIndexURI(uri)
         parseAndPublishDiagnostics(text, uri)
     }
 
     protected open fun invalidateIndexURI(uri: String) {
         indexWriter.deleteDocuments(TermQuery(Term("uri", uri)))
+        commitIndex()
     }
 
     open fun parseAndPublishDiagnostics(text: String, uri: String) {
@@ -245,6 +246,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
 
         val tree = parsingResult.root ?: return
 
+        invalidateIndexURI(uri)
         for (node in tree.walk()) {
             val document = Document()
             document.add(StringField("uri", uri, Field.Store.YES))
@@ -270,7 +272,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
 
             indexWriter.addDocument(document)
         }
-        indexWriter.commit()
+        commitIndex()
 
         val showASTWarnings = configuration["showASTWarnings"]?.asBoolean ?: false
         val showLeafPositions = configuration["showLeafPositions"]?.asBoolean ?: false
@@ -488,13 +490,13 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
-                    // parseAndPublishDiagnostics(text, uri)
+                    parseAndPublishDiagnostics(text, uri)
                 }
                 FileChangeType.Changed -> {
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
-                    // parseAndPublishDiagnostics(text, uri)
+                    parseAndPublishDiagnostics(text, uri)
                 }
                 FileChangeType.Deleted -> {
                     files.remove(change.uri)
