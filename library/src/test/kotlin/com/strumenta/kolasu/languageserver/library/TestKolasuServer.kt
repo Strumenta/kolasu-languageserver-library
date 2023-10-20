@@ -1,6 +1,8 @@
 package com.strumenta.kolasu.languageserver.library
 
 import com.google.gson.JsonObject
+import com.strumenta.kolasu.model.Node
+import com.strumenta.kolasu.traversing.walk
 import com.strumenta.rpgparser.RPGKolasuParser
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
@@ -67,5 +69,18 @@ class TestKolasuServer {
 
         val fibonacci = Paths.get("src", "test", "resources", "fibonacci.rpgle")
         server.didChange(DidChangeTextDocumentParams(VersionedTextDocumentIdentifier(fibonacci.toUri().toString(), null), listOf(TextDocumentContentChangeEvent(Files.readString(fibonacci)))))
+    }
+
+    @Test
+    @Order(4)
+    fun testTreeWalk() {
+        val tree = RPGKolasuParser().parse(Files.readString(Paths.get("src", "test", "resources", "fibonacci.rpgle"))).root!!
+        val visited = mutableListOf<Node>()
+        for (node in tree.walk()) {
+            visited.add(node)
+        }
+        for (node in tree.walk()) {
+            assertEquals(true, visited.contains(node))
+        }
     }
 }
