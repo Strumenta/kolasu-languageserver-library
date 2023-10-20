@@ -10,6 +10,8 @@ import org.eclipse.lsp4j.DidChangeTextDocumentParams
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.Position
+import org.eclipse.lsp4j.ReferenceContext
+import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.TextDocumentContentChangeEvent
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
@@ -108,5 +110,24 @@ class TestKolasuServer {
         assertEquals(2, definition.range.end.line)
         assertEquals(0, definition.range.start.character)
         assertEquals(42, definition.range.end.character)
+    }
+
+    @Test
+    @Order(6)
+    fun testReferences() {
+        val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
+        server.connect(DiagnosticSizeCheckerClient(0))
+        val workspace = Paths.get("src", "test", "resources").toUri().toString()
+        server.initialize(InitializeParams().apply { workspaceFolders = mutableListOf(WorkspaceFolder(workspace)) })
+        server.initialized(InitializedParams())
+
+        val configuration = JsonObject()
+        configuration.add("rpg", JsonObject())
+        server.didChangeConfiguration(DidChangeConfigurationParams(configuration))
+
+        val fibonacci = Paths.get("src", "test", "resources", "fibonacci.rpgle")
+        val references = server.references(ReferenceParams(TextDocumentIdentifier(fibonacci.toUri().toString()), Position(20, 38), ReferenceContext(false))).get()
+
+        assertEquals(4, references.size)
     }
 }

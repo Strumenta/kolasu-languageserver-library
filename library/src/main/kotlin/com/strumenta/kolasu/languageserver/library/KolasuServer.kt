@@ -250,7 +250,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val uuid = mutableMapOf<Node, String>()
         var id = 0
         for (node in tree.walk()) {
-            uuid[node] = "$uri ${id++}"
+            uuid[node] = "$uri${id++}"
         }
         for (node in tree.walk()) {
             val document = Document()
@@ -274,7 +274,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
                     val value = field.get(node) as ReferenceByName<*>
 
                     if (uuid[value.referred as Node] != null) {
-                        document.add(TextField("reference", uuid[value.referred as Node], Field.Store.YES))
+                        document.add(StringField("reference", uuid[value.referred as Node], Field.Store.YES))
                     }
                 }
             }
@@ -363,16 +363,22 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     }
 
     override fun references(params: ReferenceParams?): CompletableFuture<MutableList<out Location>> {
-        val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
-        val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
-        /*val projectFile = files[uri] ?: return CompletableFuture.completedFuture(null)
+        val document = getDocumentAt(params) ?: return CompletableFuture.completedFuture(null)
 
+        val referenceField = document.fields.find { it.name() == "reference" } ?: return CompletableFuture.completedFuture(null)
+        val uuid = referenceField.stringValue()
 
-        val symbol = projectFile.symbols[node.sourceText] ?: return CompletableFuture.completedFuture(null)
-        val locations = symbol.references.map { toLSPLocation(it.position!!, uri) }.toMutableList()
+        val results = indexSearcher.search(TermQuery(Term("reference", uuid)), 10000).scoreDocs
 
-        return CompletableFuture.completedFuture(locations)*/
-        return CompletableFuture.completedFuture(mutableListOf())
+        val list = mutableListOf<Location>()
+        for (result in results) {
+            val resultDocument = indexSearcher.storedFields().document(result.doc)
+            val uri = resultDocument.get("uri")
+            val range = Range(Position(resultDocument.get("startLine").toInt(), resultDocument.get("startColumn").toInt()), Position(resultDocument.get("endLine").toInt(), resultDocument.get("endColumn").toInt()))
+            val location = Location(uri, range)
+            list.add(location)
+        }
+        return CompletableFuture.completedFuture(list)
     }
 
     override fun rename(params: RenameParams?): CompletableFuture<WorkspaceEdit> {
