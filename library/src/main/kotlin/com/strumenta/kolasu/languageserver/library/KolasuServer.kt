@@ -247,8 +247,15 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val tree = parsingResult.root ?: return
 
         invalidateIndexURI(uri)
+        val uuid = mutableMapOf<Node, String>()
+        var id = 0
+        for (node in tree.walk()) {
+            uuid[node] = "$uri ${id++}"
+        }
         for (node in tree.walk()) {
             val document = Document()
+            if (uuid[node] == null) continue
+            document.add(StringField("uuid", uuid[node], Field.Store.YES))
             document.add(StringField("uri", uri, Field.Store.YES))
             node.position?.let { position ->
                 document.add(IntField("startLine", position.start.line, Field.Store.YES))
@@ -259,15 +266,17 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
             }
 
             if (node is PossiblyNamed && node.name != null) {
-                document.add(StringField("name", node.name, Field.Store.YES))
-            }
+                document.add(StringField("symbol", uuid[node], Field.Store.YES))
+            } else {
+                val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
+                referenceField?.javaField?.let { field ->
+                    field.isAccessible = true
+                    val value = field.get(node) as ReferenceByName<*>
 
-            val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
-            referenceField?.javaField?.let { field ->
-                field.isAccessible = true
-                val value = field.get(node) as ReferenceByName<*>
-
-                document.add(TextField("referenceTo", value.name, Field.Store.YES))
+                    if (uuid[value.referred as Node] != null) {
+                        document.add(TextField("reference", uuid[value.referred as Node], Field.Store.YES))
+                    }
+                }
             }
 
             indexWriter.addDocument(document)
@@ -340,17 +349,17 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     }
 
     override fun definition(params: DefinitionParams?): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
-        val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
+        val document = getDocumentAt(params) ?: return CompletableFuture.completedFuture(null)
 
-        val field = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }?.javaField ?: return CompletableFuture.completedFuture(null)
-        field.isAccessible = true
-        val value = field.get(node) as ReferenceByName<*>
-        val definition = value.referred as Node
-        val definitionPosition = definition.position ?: return CompletableFuture.completedFuture(null)
-
-        val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
-
-        return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(toLSPLocation(definitionPosition, uri))))
+        val referenceField = document.fields.find { it.name() == "reference" } ?: return CompletableFuture.completedFuture(null)
+        val symbol = referenceField.stringValue()
+        val results = indexSearcher.search(TermQuery(Term("symbol", symbol)), 100).scoreDocs
+        if (results.isEmpty()) return CompletableFuture.completedFuture(null)
+        val result = indexSearcher.storedFields().document(results.first().doc)
+        val range = Range(Position(result.get("startLine").toInt(), result.get("startColumn").toInt()), Position(result.get("endLine").toInt(), result.get("endColumn").toInt()))
+        val uri = result.get("uri")
+        val location = Location(uri, range)
+        return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(location)))
     }
 
     override fun references(params: ReferenceParams?): CompletableFuture<MutableList<out Location>> {
@@ -396,7 +405,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     }
 
     override fun hover(params: HoverParams?): CompletableFuture<Hover> {
-        val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
+        val document = getDocumentAt(params) ?: return CompletableFuture.completedFuture(null)
         val information = informationFor(document)
         return CompletableFuture.completedFuture(Hover(MarkupContent("markdown", information)))
     }
@@ -405,7 +414,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         return document.get("size")
     }
 
-    protected open fun getDocument(params: TextDocumentPositionParams?): Document? {
+    protected open fun getDocumentAt(params: TextDocumentPositionParams?): Document? {
         val uri = params?.textDocument?.uri ?: return null
         val position = params.position
 
@@ -421,7 +430,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val results = indexSearcher.search(query, 100, Sort(sortingField))
         if (results.scoreDocs.isEmpty()) return null
 
-        val documentID = results.scoreDocs.first().doc
+        val documentID = results.scoreDocs.last().doc
         return indexSearcher.storedFields().document(documentID)
     }
 

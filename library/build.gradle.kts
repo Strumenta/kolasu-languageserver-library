@@ -27,6 +27,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.1")
     testImplementation("com.strumenta:rpg-parser:2.1.30")
     testImplementation("com.strumenta:rpg-parser-symbol-resolution:2.1.30")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.6.0")
 }
 
 group = "com.strumenta"
@@ -44,4 +45,8 @@ publishing {
         }
     }
     publications { create<MavenPublication>("mavenJava") { from(components["java"]) } }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
