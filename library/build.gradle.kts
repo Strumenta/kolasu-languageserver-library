@@ -24,7 +24,7 @@ dependencies {
     implementation("org.apache.lucene:lucene-queryparser:9.8.0")
     implementation("org.apache.lucene:lucene-codecs:9.8.0")
 
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.1")
     testImplementation("com.strumenta:rpg-parser:2.1.30")
     testImplementation("com.strumenta:rpg-parser-symbol-resolution:2.1.30")
 }

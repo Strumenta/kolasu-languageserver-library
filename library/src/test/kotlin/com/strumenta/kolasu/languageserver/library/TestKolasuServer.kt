@@ -1,38 +1,50 @@
 package com.strumenta.kolasu.languageserver.library
 
-import com.strumenta.kolasu.model.Node
+import com.google.gson.JsonObject
 import com.strumenta.rpgparser.RPGKolasuParser
-import com.strumenta.rpgparser.model.CompilationUnit
-import com.strumenta.rpgparser.symbolresolution.RPGSymbolResolver
+import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.InitializeParams
+import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.WorkspaceFolder
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation
+import org.junit.jupiter.api.Order
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestMethodOrder
 import java.nio.file.Paths
 
+@TestMethodOrder(OrderAnnotation::class)
 class TestKolasuServer {
     @Test
+    @Order(0)
     fun testInitializeWithoutWorkspaceFolders() {
-        val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), MySymbolResolver())
+        val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
         val response = server.initialize(InitializeParams()).get()
 
         assertEquals(null, response)
     }
 
     @Test
+    @Order(1)
     fun testInitializeWithWorkspaceFolders() {
-        val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), MySymbolResolver())
-        val response = server.initialize(InitializeParams().apply { workspaceFolders = mutableListOf(WorkspaceFolder("workspace")) }).get()
+        val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
+        val workspace = Paths.get("src", "test", "resources").toUri().toString()
+        val response = server.initialize(InitializeParams().apply { workspaceFolders = mutableListOf(WorkspaceFolder(workspace)) }).get()
 
         assertEquals(true, response.capabilities.hoverProvider.left)
     }
-}
 
-class MySymbolResolver : SymbolResolver {
-    override fun resolveSymbols(tree: Node?) {
-        if (tree == null) return
+    @Test
+    @Order(2)
+    fun testDidChangeConfiguration() {
+        val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
+        server.connect(DiagnosticSizeCheckerClient(0))
+        val workspace = Paths.get("src", "test", "resources").toUri().toString()
+        server.initialize(InitializeParams().apply { workspaceFolders = mutableListOf(WorkspaceFolder(workspace)) })
+        server.initialized(InitializedParams())
 
-        com.strumenta.rpgparser.symbolresolution.RPGExternalProcessor.resolve(tree as CompilationUnit, Paths.get("..", "..", "..", "..", "..", "..", "resources").toFile())
-        RPGSymbolResolver.resolveSymbols(tree)
+        val configuration = JsonObject()
+        configuration.add("rpg", JsonObject())
+        server.didChangeConfiguration(DidChangeConfigurationParams(configuration))
     }
 }

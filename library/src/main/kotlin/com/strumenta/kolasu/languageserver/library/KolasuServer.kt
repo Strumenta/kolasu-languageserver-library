@@ -19,11 +19,9 @@ import org.apache.lucene.document.IntPoint
 import org.apache.lucene.document.StringField
 import org.apache.lucene.document.TextField
 import org.apache.lucene.index.DirectoryReader
-import org.apache.lucene.index.IndexReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
 import org.apache.lucene.index.Term
-import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser
 import org.apache.lucene.search.BooleanClause
 import org.apache.lucene.search.BooleanQuery
 import org.apache.lucene.search.IndexSearcher
@@ -116,6 +114,8 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     protected open val folders: MutableList<String> = mutableListOf()
     protected open val files: MutableMap<String, ParsingResult<T>> = mutableMapOf()
     protected open val indexPath: Path = Paths.get("indexes")
+    protected open lateinit var indexWriter: IndexWriter
+    protected open lateinit var indexSearcher: IndexSearcher
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
@@ -135,6 +135,18 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         for (folder in workspaceFolders) {
             folders.add(folder.uri)
         }
+
+        if (Files.exists(indexPath)) {
+            indexPath.toFile().deleteRecursively()
+        }
+        val indexDirectory = FSDirectory.open(indexPath)
+        val indexConfiguration = IndexWriterConfig(StandardAnalyzer()).apply { openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND }
+        indexWriter = IndexWriter(indexDirectory, indexConfiguration)
+        indexWriter.commit()
+
+        val reader = DirectoryReader.open(indexDirectory)
+        indexSearcher = IndexSearcher(reader)
+
         val capabilities = ServerCapabilities()
         capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
         capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
@@ -167,37 +179,26 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing"; message = "0 out of 5"; })))
         client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { percentage = 0 })))
         for (folder in folders) {
-            if (Files.exists(indexPath)) {
-                indexPath.toFile().deleteRecursively()
-            }
-            val indexDirectory = FSDirectory.open(indexPath)
-            val indexConfiguration = IndexWriterConfig(StandardAnalyzer())
-            indexConfiguration.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND)
-            val indexWriter = IndexWriter(indexDirectory, indexConfiguration)
-
             val projectFiles = mutableListOf<Path>()
-            projectFilesIn(Paths.get(URI(folder)), projectFiles)
+            collectFilesIn(Paths.get(URI(folder)), projectFiles)
 
             val totalBytes = projectFiles.sumOf { it.fileSize() }
             var parsedBytes = 0L
             for (file in projectFiles) {
-                val uri = file.toUri().toString()
-                val text = Files.readString(file)
+                parseAndPublishDiagnostics(Files.readString(file), file.toUri().toString())
 
-                parseAndPublishDiagnostics(text, uri, indexWriter)
                 parsedBytes += file.fileSize()
                 val percentage = (parsedBytes * 100 / totalBytes).toInt()
                 client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { this.percentage = percentage })))
             }
-            indexWriter.close()
         }
         client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressEnd())))
     }
 
-    protected open fun projectFilesIn(directory: Path, result: MutableList<Path>) {
+    protected open fun collectFilesIn(directory: Path, result: MutableList<Path>) {
         for (file in Files.list(directory)) {
             if (file.isDirectory()) {
-                projectFilesIn(file, result)
+                collectFilesIn(file, result)
             } else if (extensions.contains(file.extension)) {
                 result.add(file)
             }
@@ -213,24 +214,31 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val uri = params?.textDocument?.uri ?: return
         val text = params.textDocument.text
 
-        // parseAndPublishDiagnostics(text, uri)
+        invalidateIndexURI(uri)
+        parseAndPublishDiagnostics(text, uri)
     }
 
     override fun didChange(params: DidChangeTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = params.contentChanges.first()?.text ?: return
 
-        // parseAndPublishDiagnostics(text, uri)
+        invalidateIndexURI(uri)
+        parseAndPublishDiagnostics(text, uri)
     }
 
     override fun didClose(params: DidCloseTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = Files.readString(Paths.get(URI(uri)))
 
-        // parseAndPublishDiagnostics(text, uri)
+        invalidateIndexURI(uri)
+        parseAndPublishDiagnostics(text, uri)
     }
 
-    open fun parseAndPublishDiagnostics(text: String, uri: String, indexWriter: IndexWriter) {
+    protected open fun invalidateIndexURI(uri: String) {
+        indexWriter.deleteDocuments(TermQuery(Term("uri", uri)))
+    }
+
+    open fun parseAndPublishDiagnostics(text: String, uri: String) {
         val parsingResult = parser.parse(text)
         symbolResolver?.resolveSymbols(parsingResult.root)
         files[uri] = parsingResult
@@ -262,6 +270,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
 
             indexWriter.addDocument(document)
         }
+        indexWriter.commit()
 
         val showASTWarnings = configuration["showASTWarnings"]?.asBoolean ?: false
         val showLeafPositions = configuration["showLeafPositions"]?.asBoolean ?: false
@@ -398,10 +407,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val uri = params?.textDocument?.uri ?: return null
         val position = params.position
 
-        val indexDirectory = FSDirectory.open(indexPath)
-        val reader: IndexReader = DirectoryReader.open(indexDirectory)
-        val searcher = IndexSearcher(reader)
-
         val query = BooleanQuery.Builder()
             .add(TermQuery(Term("uri", uri)), BooleanClause.Occur.MUST)
             .add(IntPoint.newRangeQuery("startLine", Int.MIN_VALUE, position.line), BooleanClause.Occur.MUST)
@@ -410,12 +415,12 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
             .add(IntPoint.newRangeQuery("endColumn", position.character, Int.MAX_VALUE), BooleanClause.Occur.MUST)
             .build()
 
-        val valueSort = SortedNumericSortField("size", SortField.Type.INT, true)
-        val results = searcher.search(query, 100, Sort(valueSort))
+        val sortingField = SortedNumericSortField("size", SortField.Type.INT, true)
+        val results = indexSearcher.search(query, 100, Sort(sortingField))
         if (results.scoreDocs.isEmpty()) return null
-        val result = results.scoreDocs.first()
 
-        return searcher.storedFields().document(result.doc)
+        val documentID = results.scoreDocs.first().doc
+        return indexSearcher.storedFields().document(documentID)
     }
 
     protected open fun getNode(params: TextDocumentPositionParams?): Node? {
@@ -500,6 +505,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     }
 
     override fun shutdown(): CompletableFuture<Any> {
+        indexWriter.close()
         return CompletableFuture.completedFuture(null)
     }
 
