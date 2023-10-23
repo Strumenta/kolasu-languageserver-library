@@ -17,14 +17,16 @@ dependencies {
 
 gradlePlugin {
     plugins {
-        create("language-server-plugin") { id = "language-server-plugin"; implementationClass = "com.strumenta.languageserver.LanguageServerPlugin" }
+        create("language-server-plugin") {
+            id = "language-server-plugin"
+            implementationClass = "com.strumenta.languageserver.LanguageServerPlugin"
+        }
     }
 }
 
 publishing {
     repositories {
         maven {
-            name = "GitHubPackages"
             url = uri("https://maven.pkg.github.com/Strumenta/kolasu-languageserver-library")
             credentials {
                 username = project.findProperty("starlasu.github.user").toString()
@@ -32,8 +34,12 @@ publishing {
             }
         }
     }
-    publications { create<MavenPublication>("mavenJava") { from(components["java"]) } }
+    publications {
+        create<MavenPublication>("mavenJava") {
+            groupId = "com.strumenta"
+            artifactId = "language-server-plugin"
+            version = "0.0.0"
+            from(components["java"])
+        }
+    }
 }
-
-group = "com.strumenta"
-version = "0.0.0"
