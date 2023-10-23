@@ -23,8 +23,13 @@ dependencies {
     implementation("org.apache.lucene:lucene-core:9.8.0")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.6.0")
     testImplementation("com.strumenta:rpg-parser:2.1.30")
     testImplementation("com.strumenta:rpg-parser-symbol-resolution:2.1.30")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 publishing {

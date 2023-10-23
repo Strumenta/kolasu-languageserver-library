@@ -102,7 +102,7 @@ class TestKolasuServer {
     }
 
     @Test
-    fun testReferences() {
+    fun testReferencesWithoutDefinition() {
         val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
         server.connect(DiagnosticSizeCheckerClient(0))
         val workspace = Paths.get("src", "test", "resources").toUri().toString()
@@ -117,5 +117,23 @@ class TestKolasuServer {
         val references = server.references(ReferenceParams(TextDocumentIdentifier(fibonacci.toUri().toString()), Position(20, 38), ReferenceContext(false))).get()
 
         assertEquals(4, references.size)
+    }
+
+    @Test
+    fun testReferencesWithDefinition() {
+        val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
+        server.connect(DiagnosticSizeCheckerClient(0))
+        val workspace = Paths.get("src", "test", "resources").toUri().toString()
+        server.initialize(InitializeParams().apply { workspaceFolders = mutableListOf(WorkspaceFolder(workspace)) })
+        server.initialized(InitializedParams())
+
+        val configuration = JsonObject()
+        configuration.add("rpg", JsonObject())
+        server.didChangeConfiguration(DidChangeConfigurationParams(configuration))
+
+        val fibonacci = Paths.get("src", "test", "resources", "fibonacci.rpgle")
+        val references = server.references(ReferenceParams(TextDocumentIdentifier(fibonacci.toUri().toString()), Position(20, 38), ReferenceContext(true))).get()
+
+        assertEquals(5, references.size)
     }
 }

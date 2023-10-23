@@ -1,7 +1,6 @@
 package com.strumenta.kolasu.languageserver.library
 
 import com.google.gson.JsonObject
-import com.strumenta.kolasu.model.FileSource
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
@@ -266,7 +265,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
             }
 
             if (node is PossiblyNamed && node.name != null) {
-                document.add(StringField("symbol", uuid[node], Field.Store.YES))
+                document.add(StringField("name", node.name, Field.Store.YES))
             } else {
                 val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
                 referenceField?.javaField?.let { field ->
@@ -349,35 +348,36 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     }
 
     override fun definition(params: DefinitionParams?): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
-        val document = getDocumentAt(params) ?: return CompletableFuture.completedFuture(null)
+        val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
 
-        val referenceField = document.fields.find { it.name() == "reference" } ?: return CompletableFuture.completedFuture(null)
-        val symbol = referenceField.stringValue()
-        val results = indexSearcher.search(TermQuery(Term("symbol", symbol)), 100).scoreDocs
-        if (results.isEmpty()) return CompletableFuture.completedFuture(null)
-        val result = indexSearcher.storedFields().document(results.first().doc)
-        val range = Range(Position(result.get("startLine").toInt(), result.get("startColumn").toInt()), Position(result.get("endLine").toInt(), result.get("endColumn").toInt()))
-        val uri = result.get("uri")
-        val location = Location(uri, range)
+        val symbolID = document.fields.find { it.name() == "reference" }?.stringValue() ?: return CompletableFuture.completedFuture(null)
+        val result = indexSearcher.search(TermQuery(Term("uuid", symbolID)), 1).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
+        val definition = indexSearcher.storedFields().document(result.doc)
+
+        val location = toLSPLocation(definition)
+
         return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(location)))
     }
 
     override fun references(params: ReferenceParams?): CompletableFuture<MutableList<out Location>> {
-        val document = getDocumentAt(params) ?: return CompletableFuture.completedFuture(null)
+        val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
 
-        val referenceField = document.fields.find { it.name() == "reference" } ?: return CompletableFuture.completedFuture(null)
-        val uuid = referenceField.stringValue()
-
-        val results = indexSearcher.search(TermQuery(Term("reference", uuid)), 10000).scoreDocs
+        val symbolID = document.fields.find { it.name() == "reference" }?.stringValue() ?: return CompletableFuture.completedFuture(null)
+        val results = indexSearcher.search(TermQuery(Term("reference", symbolID)), Int.MAX_VALUE).scoreDocs
 
         val list = mutableListOf<Location>()
         for (result in results) {
-            val resultDocument = indexSearcher.storedFields().document(result.doc)
-            val uri = resultDocument.get("uri")
-            val range = Range(Position(resultDocument.get("startLine").toInt(), resultDocument.get("startColumn").toInt()), Position(resultDocument.get("endLine").toInt(), resultDocument.get("endColumn").toInt()))
-            val location = Location(uri, range)
-            list.add(location)
+            val reference = indexSearcher.storedFields().document(result.doc)
+            list.add(toLSPLocation(reference))
         }
+
+        if (params?.context?.isIncludeDeclaration == true) {
+            val result = indexSearcher.search(TermQuery(Term("uuid", symbolID)), 1).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
+            val definition = indexSearcher.storedFields().document(result.doc)
+
+            list.add(toLSPLocation(definition))
+        }
+
         return CompletableFuture.completedFuture(list)
     }
 
@@ -411,7 +411,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     }
 
     override fun hover(params: HoverParams?): CompletableFuture<Hover> {
-        val document = getDocumentAt(params) ?: return CompletableFuture.completedFuture(null)
+        val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
         val information = informationFor(document)
         return CompletableFuture.completedFuture(Hover(MarkupContent("markdown", information)))
     }
@@ -420,7 +420,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         return document.get("size")
     }
 
-    protected open fun getDocumentAt(params: TextDocumentPositionParams?): Document? {
+    protected open fun getDocument(params: TextDocumentPositionParams?): Document? {
         val uri = params?.textDocument?.uri ?: return null
         val position = params.position
 
@@ -453,14 +453,10 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         return Range(start, end)
     }
 
-    protected open fun toLSPLocation(position: com.strumenta.kolasu.model.Position, uri: String): Location {
-        val range = toLSPRange(position)
-        val source = position.source
-        return if (source is FileSource) {
-            Location(source.file.toURI().toString(), range)
-        } else {
-            Location(uri, range)
-        }
+    protected open fun toLSPLocation(document: Document): Location {
+        val uri = document.get("uri")
+        val range = Range(Position(document.get("startLine").toInt(), document.get("startColumn").toInt()), Position(document.get("endLine").toInt(), document.get("endColumn").toInt()))
+        return Location(uri, range)
     }
 
     protected open fun toKolasuRange(position: Position): com.strumenta.kolasu.model.Position {
