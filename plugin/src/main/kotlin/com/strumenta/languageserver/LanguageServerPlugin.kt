@@ -14,28 +14,28 @@ import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.util.*
 
-open class LanguageServerExtension {
-    var editor: String = ""
-    var language: String = ""
-    var version: String = ""
-    var publisher: String = ""
-    var fileExtensions: List<String> = listOf()
-    var textmateGrammarScope: String = ""
-    var entryPointPath: Path = Paths.get("")
-    var serverJarPath: Path = Paths.get("")
-    var examplesPath: Path = Paths.get("")
-    var textmateGrammarPath: Path = Paths.get("")
-    var logoPath: Path = Paths.get("")
-    var fileIconPath: Path = Paths.get("")
-    var languageClientPath: Path = Paths.get("")
-    var packageDefinitionPath: Path = Paths.get("")
-    var licensePath: Path = Paths.get("")
-    var outputPath: Path = Paths.get("")
-}
+data class LanguageServerExtension(
+    var editor: String,
+    var language: String,
+    var version: String,
+    var publisher: String,
+    var fileExtensions: List<String>,
+    var textmateGrammarScope: String,
+    var entryPointPath: Path,
+    var serverJarPath: Path,
+    var examplesPath: Path,
+    var textmateGrammarPath: Path,
+    var logoPath: Path,
+    var fileIconPath: Path,
+    var languageClientPath: Path,
+    var packageDefinitionPath: Path,
+    var licensePath: Path,
+    var outputPath: Path
+)
 
 class LanguageServerPlugin : Plugin<Project?> {
 
-    private var extension: LanguageServerExtension = LanguageServerExtension()
+    private lateinit var extension: LanguageServerExtension
 
     override fun apply(project: Project?) {
         if (project == null) return
@@ -53,12 +53,13 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.dependencies.add("implementation", "com.strumenta.kolasu:kolasu-core:1.5.31")
         project.dependencies.add("implementation", "org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-core:9.8.0")
-        project.dependencies.add("implementation", "org.apache.lucene:lucene-core:9.8.0")
+        project.dependencies.add("implementation", "org.apache.lucene:lucene-codecs:9.8.0")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-queryparser:9.8.0")
         project.dependencies.add("testImplementation", "org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
 
         val projectPath = project.projectDir.toString()
         val language = project.rootProject.name
+        val resources = listOf(projectPath, "src", "main", "resources")
 
         project.extensions.add("languageServer", LanguageServerExtension::class.java)
         extension = project.extensions.getByType(LanguageServerExtension::class.java)
@@ -67,12 +68,11 @@ class LanguageServerPlugin : Plugin<Project?> {
         extension.publisher = "strumenta"
         extension.fileExtensions = mutableListOf(language)
         extension.editor = "code"
+        extension.textmateGrammarScope = "main"
         extension.serverJarPath = Paths.get(projectPath, "build", "libs", "$language.jar")
         extension.examplesPath = Paths.get(project.rootDir.toString(), "examples")
-
         extension.entryPointPath = Paths.get(projectPath, "src", "main", "kotlin", "com", "strumenta", language, "languageserver", "Main.kt")
         extension.textmateGrammarPath = Paths.get(projectPath, "src", "main", "resources", "grammar.tmLanguage")
-        extension.textmateGrammarScope = "main"
         extension.logoPath = Paths.get(projectPath, "src", "main", "resources", "logo.png")
         extension.fileIconPath = Paths.get(projectPath, "src", "main", "resources", "fileIcon.png")
         extension.languageClientPath = Paths.get(projectPath, "src", "main", "resources", "client.js")

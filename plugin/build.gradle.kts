@@ -18,7 +18,9 @@ dependencies {
 gradlePlugin {
     plugins {
         create("language-server-plugin") {
+            group = "com.strumenta"
             id = "language-server-plugin"
+            version = "0.0.0"
             implementationClass = "com.strumenta.languageserver.LanguageServerPlugin"
         }
     }
@@ -36,9 +38,7 @@ publishing {
     }
     publications {
         create<MavenPublication>("mavenJava") {
-            groupId = "com.strumenta"
             artifactId = "language-server-plugin"
-            version = "0.0.0"
             from(components["java"])
         }
     }
