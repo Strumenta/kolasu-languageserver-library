@@ -14,24 +14,24 @@ import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.util.*
 
-data class LanguageServerExtension(
-    var editor: String,
-    var language: String,
-    var version: String,
-    var publisher: String,
-    var fileExtensions: List<String>,
-    var textmateGrammarScope: String,
-    var entryPointPath: Path,
-    var serverJarPath: Path,
-    var examplesPath: Path,
-    var textmateGrammarPath: Path,
-    var logoPath: Path,
-    var fileIconPath: Path,
-    var languageClientPath: Path,
-    var packageDefinitionPath: Path,
-    var licensePath: Path,
-    var outputPath: Path
-)
+open class LanguageServerExtension {
+    lateinit var editor: String
+    lateinit var language: String
+    lateinit var version: String
+    lateinit var publisher: String
+    lateinit var fileExtensions: List<String>
+    lateinit var textmateGrammarScope: String
+    lateinit var entryPointPath: Path
+    lateinit var serverJarPath: Path
+    lateinit var examplesPath: Path
+    lateinit var textmateGrammarPath: Path
+    lateinit var logoPath: Path
+    lateinit var fileIconPath: Path
+    lateinit var languageClientPath: Path
+    lateinit var packageDefinitionPath: Path
+    lateinit var licensePath: Path
+    lateinit var outputPath: Path
+}
 
 class LanguageServerPlugin : Plugin<Project?> {
 
@@ -83,8 +83,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
         shadowJar.manifest.attributes["Multi-Release"] = "true"
-        shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar lucene-codecs-9.8.0.jar lucene-queryparser-9.8.0.jar"
-        shadowJar.excludes.add("org/apache/lucene/**")
+        shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar"
         shadowJar.archiveFileName.set("$language.jar")
 
         addCreateVscodeExtensionTask(project)
@@ -258,8 +257,6 @@ class LanguageServerPlugin : Plugin<Project?> {
             Files.writeString(Paths.get(extension.outputPath.toString(), "LICENSE.md"), "Copyright Strumenta SRL")
         }
         ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-core-9.8.0.jar").toString()).start().waitFor()
-        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()).start().waitFor()
-        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-queryparser/9.8.0/lucene-queryparser-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-queryparser-9.8.0.jar").toString()).start().waitFor()
 
         ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(extension.outputPath.toFile()).start().waitFor()
     }
