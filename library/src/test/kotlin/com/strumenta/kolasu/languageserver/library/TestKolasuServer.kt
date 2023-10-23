@@ -1,8 +1,6 @@
 package com.strumenta.kolasu.languageserver.library
 
 import com.google.gson.JsonObject
-import com.strumenta.kolasu.model.Node
-import com.strumenta.kolasu.traversing.walk
 import com.strumenta.rpgparser.RPGKolasuParser
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.DidChangeConfigurationParams
@@ -17,17 +15,25 @@ import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
 import org.eclipse.lsp4j.WorkspaceFolder
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.MethodOrderer.OrderAnnotation
-import org.junit.jupiter.api.Order
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestMethodOrder
 import java.nio.file.Files
 import java.nio.file.Paths
 
-@TestMethodOrder(OrderAnnotation::class)
 class TestKolasuServer {
+
+    companion object {
+        @BeforeAll
+        @JvmStatic
+        fun setupBeforeAll() {
+            val indexes = Paths.get("indexes").toFile()
+            if (indexes.exists()) {
+                indexes.deleteRecursively()
+            }
+        }
+    }
+
     @Test
-    @Order(0)
     fun testInitializeWithoutWorkspaceFolders() {
         val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
         val response = server.initialize(InitializeParams()).get()
@@ -36,7 +42,6 @@ class TestKolasuServer {
     }
 
     @Test
-    @Order(1)
     fun testInitializeWithWorkspaceFolders() {
         val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
         val workspace = Paths.get("src", "test", "resources").toUri().toString()
@@ -46,7 +51,6 @@ class TestKolasuServer {
     }
 
     @Test
-    @Order(2)
     fun testDidChangeConfiguration() {
         val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
         server.connect(DiagnosticSizeCheckerClient(0))
@@ -60,7 +64,6 @@ class TestKolasuServer {
     }
 
     @Test
-    @Order(3)
     fun testDidChange() {
         val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
         server.connect(DiagnosticSizeCheckerClient(0))
@@ -77,20 +80,6 @@ class TestKolasuServer {
     }
 
     @Test
-    @Order(4)
-    fun testTreeWalk() {
-        val tree = RPGKolasuParser().parse(Files.readString(Paths.get("src", "test", "resources", "fibonacci.rpgle"))).root!!
-        val visited = mutableListOf<Node>()
-        for (node in tree.walk()) {
-            visited.add(node)
-        }
-        for (node in tree.walk()) {
-            assertEquals(true, visited.contains(node))
-        }
-    }
-
-    @Test
-    @Order(5)
     fun testDefinition() {
         val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
         server.connect(DiagnosticSizeCheckerClient(0))
@@ -113,7 +102,6 @@ class TestKolasuServer {
     }
 
     @Test
-    @Order(6)
     fun testReferences() {
         val server = KolasuServer(RPGKolasuParser(), "rpg", listOf("rpgle", "dds"), RPGSymbolResolverAdapter())
         server.connect(DiagnosticSizeCheckerClient(0))

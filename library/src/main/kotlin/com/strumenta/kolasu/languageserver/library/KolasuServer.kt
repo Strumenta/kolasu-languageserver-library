@@ -17,7 +17,6 @@ import org.apache.lucene.document.Field
 import org.apache.lucene.document.IntField
 import org.apache.lucene.document.IntPoint
 import org.apache.lucene.document.StringField
-import org.apache.lucene.document.TextField
 import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
@@ -96,6 +95,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.io.path.extension
 import kotlin.io.path.fileSize
@@ -113,7 +113,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     protected open var traceLevel: String = "off"
     protected open val folders: MutableList<String> = mutableListOf()
     protected open val files: MutableMap<String, ParsingResult<T>> = mutableMapOf()
-    protected open val indexPath: Path = Paths.get("indexes")
+    protected open val indexPath: Path = Paths.get("indexes", UUID.randomUUID().toString())
     protected open lateinit var indexWriter: IndexWriter
     protected open lateinit var indexSearcher: IndexSearcher
 
