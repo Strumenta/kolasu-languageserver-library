@@ -25,6 +25,7 @@ class TestKolasuServer {
     private val testFilePath = Paths.get("src", "test", "resources", "fibonacci.rpgle")
     private val testFile = TextDocumentIdentifier(testFilePath.toUri().toString())
     private val symbolPosition = Position(20, 38)
+    private val noSymbolPosition = Position(15, 1)
 
     @Test
     fun testInitializeWithoutWorkspaceFolders() {
@@ -52,7 +53,16 @@ class TestKolasuServer {
     }
 
     @Test
-    fun testDefinition() {
+    fun testDefinitionOfNoSymbol() {
+        val server = initializeServer()
+
+        val definition = server.definition(DefinitionParams(testFile, noSymbolPosition)).get()
+
+        assertEquals(null, definition)
+    }
+
+    @Test
+    fun testDefinitionOfSymbol() {
         val server = initializeServer()
 
         val definition = server.definition(DefinitionParams(testFile, symbolPosition)).get().left.first()
@@ -62,6 +72,15 @@ class TestKolasuServer {
         assertEquals(2, definition.range.end.line)
         assertEquals(0, definition.range.start.character)
         assertEquals(42, definition.range.end.character)
+    }
+
+    @Test
+    fun testReferencesOfNoSymbol() {
+        val server = initializeServer()
+
+        val references = server.references(ReferenceParams(testFile, noSymbolPosition, ReferenceContext(false))).get()
+
+        assertEquals(null, references)
     }
 
     @Test
