@@ -24,8 +24,8 @@ class TestKolasuServer {
 
     private val testFilePath = Paths.get("src", "test", "resources", "fibonacci.rpgle")
     private val testFile = TextDocumentIdentifier(testFilePath.toUri().toString())
-    private val symbolPosition = Position(20, 38)
-    private val noSymbolPosition = Position(15, 1)
+    private val symbolPosition = Position(19, 38)
+    private val noSymbolPosition = Position(14, 1)
 
     @Test
     fun testInitializeWithoutWorkspaceFolders() {
@@ -68,8 +68,8 @@ class TestKolasuServer {
         val definition = server.definition(DefinitionParams(testFile, symbolPosition)).get().left.first()
 
         assertEquals(testFilePath.toUri().toString(), definition.uri)
-        assertEquals(2, definition.range.start.line)
-        assertEquals(2, definition.range.end.line)
+        assertEquals(1, definition.range.start.line)
+        assertEquals(1, definition.range.end.line)
         assertEquals(0, definition.range.start.character)
         assertEquals(42, definition.range.end.character)
     }

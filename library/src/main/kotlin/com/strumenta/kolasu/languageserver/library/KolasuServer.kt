@@ -272,7 +272,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
                     field.isAccessible = true
                     val value = field.get(node) as ReferenceByName<*>
 
-                    if (uuid[value.referred as Node] != null) {
+                    if (value.referred is Node && uuid[value.referred as Node] != null) {
                         document.add(StringField("reference", uuid[value.referred as Node], Field.Store.YES))
                     }
                 }
@@ -426,8 +426,8 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
 
         val query = BooleanQuery.Builder()
             .add(TermQuery(Term("uri", uri)), BooleanClause.Occur.MUST)
-            .add(IntPoint.newRangeQuery("startLine", Int.MIN_VALUE, position.line), BooleanClause.Occur.MUST)
-            .add(IntPoint.newRangeQuery("endLine", position.line, Int.MAX_VALUE), BooleanClause.Occur.MUST)
+            .add(IntPoint.newExactQuery("startLine", position.line + 1), BooleanClause.Occur.MUST)
+            .add(IntPoint.newExactQuery("endLine", position.line + 1), BooleanClause.Occur.MUST)
             .add(IntPoint.newRangeQuery("startColumn", Int.MIN_VALUE, position.character), BooleanClause.Occur.MUST)
             .add(IntPoint.newRangeQuery("endColumn", position.character, Int.MAX_VALUE), BooleanClause.Occur.MUST)
             .build()
@@ -455,7 +455,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
 
     protected open fun toLSPLocation(document: Document): Location {
         val uri = document.get("uri")
-        val range = Range(Position(document.get("startLine").toInt(), document.get("startColumn").toInt()), Position(document.get("endLine").toInt(), document.get("endColumn").toInt()))
+        val range = Range(Position(document.get("startLine").toInt() - 1, document.get("startColumn").toInt()), Position(document.get("endLine").toInt() - 1, document.get("endColumn").toInt()))
         return Location(uri, range)
     }
 
