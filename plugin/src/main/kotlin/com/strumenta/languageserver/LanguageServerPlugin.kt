@@ -83,8 +83,9 @@ class LanguageServerPlugin : Plugin<Project?> {
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
         shadowJar.manifest.attributes["Multi-Release"] = "true"
-        shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar"
+        shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar lucene-codecs-9.8.0.jar"
         shadowJar.archiveFileName.set("$language.jar")
+        shadowJar.excludes.add("org/apache/lucene/**/*")
 
         addCreateVscodeExtensionTask(project)
         addLaunchVscodeEditorTask(project)
@@ -221,7 +222,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         
                 async function activate (context)
                 {
-                    let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar"), "${extension.language}", "${extension.fileExtensions.joinToString(",")}"]}};
+                    let productionServer = {run: {command: "java", args: ["-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,quiet=y,address=*:5005", "-jar", context.asAbsolutePath("server.jar"), "${extension.language}", "${extension.fileExtensions.joinToString(",")}"]}};
         
                     let languageClient = new LanguageClient("${extension.language}", "${extension.language} language server", productionServer, {documentSelector: ["${extension.language}"]});
                     await languageClient.start();
@@ -257,6 +258,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             Files.writeString(Paths.get(extension.outputPath.toString(), "LICENSE.md"), "Copyright Strumenta SRL")
         }
         ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-core-9.8.0.jar").toString()).start().waitFor()
+        ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar", "-o", Paths.get(extension.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()).start().waitFor()
 
         ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(extension.outputPath.toFile()).start().waitFor()
     }
