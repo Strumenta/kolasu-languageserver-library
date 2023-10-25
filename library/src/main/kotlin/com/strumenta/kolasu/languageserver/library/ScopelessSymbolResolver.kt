@@ -11,7 +11,7 @@ import kotlin.reflect.typeOf
 
 class ScopelessSymbolResolver : SymbolResolver {
 
-    override fun resolveSymbols(tree: Node?) {
+    override fun resolveSymbols(tree: Node?, uri: String) {
         if (tree == null) return
         val symbols = mutableMapOf<String, PossiblyNamed>()
         tree.walk().forEach { node ->

@@ -7,7 +7,7 @@ import com.strumenta.rpgparser.symbolresolution.RPGSymbolResolver
 import java.nio.file.Paths
 
 class RPGSymbolResolverAdapter : SymbolResolver {
-    override fun resolveSymbols(tree: Node?) {
+    override fun resolveSymbols(tree: Node?, uri: String) {
         if (tree == null) return
 
         RPGExternalProcessor.resolve(tree as CompilationUnit, Paths.get("src", "test", "resources").toFile())

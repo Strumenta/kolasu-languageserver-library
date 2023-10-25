@@ -115,6 +115,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     protected open val indexPath: Path = Paths.get("indexes", UUID.randomUUID().toString())
     protected open lateinit var indexWriter: IndexWriter
     protected open lateinit var indexSearcher: IndexSearcher
+    protected open val uuid = mutableMapOf<Node, String>()
 
     override fun getTextDocumentService() = this
     override fun getWorkspaceService() = this
@@ -240,13 +241,12 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
 
     open fun parseAndPublishDiagnostics(text: String, uri: String) {
         val parsingResult = parser.parse(text)
-        symbolResolver?.resolveSymbols(parsingResult.root)
+        symbolResolver?.resolveSymbols(parsingResult.root, uri)
         files[uri] = parsingResult
 
         val tree = parsingResult.root ?: return
 
         invalidateIndexURI(uri)
-        val uuid = mutableMapOf<Node, String>()
         var id = 0
         for (node in tree.walk()) {
             uuid[node] = "$uri${id++}"
@@ -354,6 +354,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val result = indexSearcher.search(TermQuery(Term("uuid", symbolID)), 1).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
         val definition = indexSearcher.storedFields().document(result.doc)
 
+        if (definition.fields.none { it.name() == "startLine" }) return CompletableFuture.completedFuture(null)
         val location = toLSPLocation(definition)
 
         return CompletableFuture.completedFuture(Either.forLeft(mutableListOf(location)))
@@ -469,7 +470,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         val uri = params?.textDocument?.uri ?: return
         val tree = files[uri]?.root ?: return
 
-        generator?.generate(tree)
+        generator?.generate(tree, uri)
     }
 
     override fun didChangeWorkspaceFolders(params: DidChangeWorkspaceFoldersParams?) {
@@ -549,9 +550,9 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
 }
 
 interface CodeGenerator<T : Node> {
-    fun generate(tree: T)
+    fun generate(tree: T, uri: String)
 }
 
 interface SymbolResolver {
-    fun resolveSymbols(tree: Node?)
+    fun resolveSymbols(tree: Node?, uri: String)
 }

@@ -26,6 +26,7 @@ class TestKolasuServer {
     private val testFile = TextDocumentIdentifier(testFilePath.toUri().toString())
     private val symbolPosition = Position(19, 38)
     private val noSymbolPosition = Position(14, 1)
+    private val externalSymbolPosition = Position(40, 52)
 
     @Test
     fun testInitializeWithoutWorkspaceFolders() {
@@ -99,6 +100,15 @@ class TestKolasuServer {
         val references = server.references(ReferenceParams(testFile, symbolPosition, ReferenceContext(true))).get()
 
         assertEquals(5, references.size)
+    }
+
+    @Test
+    fun testExternalSymbolDefinition() {
+        val server = initializeServer()
+
+        val definition = server.definition(DefinitionParams(testFile, externalSymbolPosition)).get()
+
+        assertEquals(null, definition)
     }
 
     private fun initializeServer(): KolasuServer<CompilationUnit> {

@@ -222,7 +222,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         
                 async function activate (context)
                 {
-                    let productionServer = {run: {command: "java", args: ["-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,quiet=y,address=*:5005", "-jar", context.asAbsolutePath("server.jar"), "${extension.language}", "${extension.fileExtensions.joinToString(",")}"]}};
+                    let productionServer = {run: {command: "java", args: ["-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,quiet=y,address=*:5005", "-jar", context.asAbsolutePath("server.jar"), "${extension.language}", "${extension.fileExtensions.joinToString(",")}"]}};
         
                     let languageClient = new LanguageClient("${extension.language}", "${extension.language} language server", productionServer, {documentSelector: ["${extension.language}"]});
                     await languageClient.start();
