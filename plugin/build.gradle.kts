@@ -31,13 +31,13 @@ publishing {
         maven {
             url = uri("https://maven.pkg.github.com/Strumenta/kolasu-languageserver-library")
             credentials {
-                username = project.findProperty("starlasu.github.user").toString()
-                password = project.findProperty("starlasu.github.token").toString()
+                username = (if (extra.has("starlasu.github.user")) extra["starlasu.github.user"] else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
+                password = (if (extra.has("starlasu.github.token")) extra["starlasu.github.token"] else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
             }
         }
     }
     publications {
-        create<MavenPublication>("mavenJava") {
+        create<MavenPublication>("language-server-plugin") {
             artifactId = "language-server-plugin"
             from(components["java"])
         }

@@ -7,6 +7,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.configurationcache.extensions.capitalized
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformJvmPlugin
+import org.jetbrains.kotlin.gradle.plugin.statistics.ReportStatisticsToElasticSearch.url
 import org.jetbrains.kotlin.konan.file.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -43,8 +44,13 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.pluginManager.apply(ShadowPlugin::class.java)
         project.pluginManager.apply(KotlinPlatformJvmPlugin::class.java)
 
-        project.repositories.add(project.repositories.mavenCentral())
         project.repositories.add(project.repositories.mavenLocal())
+        project.repositories.add(project.repositories.mavenCentral())
+        project.repositories.maven {}.apply {
+            url = java.net.URI("https://maven.pkg.github.com/Strumenta/kolasu-languageserver-library")
+            credentials.username = (if (project.findProperty("starlasu.github.user") != null) project.findProperty("starlasu.github.user") else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
+            credentials.password = (if (project.findProperty("starlasu.github.token") != null) project.findProperty("starlasu.github.token") else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
+        }
 
         if (project.rootProject.subprojects.any { it.name == "ast" }) {
             project.dependencies.add("implementation", project.dependencies.project(mapOf("path" to ":ast")))
@@ -56,10 +62,10 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.dependencies.add("implementation", "org.apache.lucene:lucene-codecs:9.8.0")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-queryparser:9.8.0")
         project.dependencies.add("testImplementation", "org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
+        project.dependencies.add("testImplementation", "com.strumenta:language-server-test:0.0.0")
 
         val projectPath = project.projectDir.toString()
         val language = project.rootProject.name
-        val resources = listOf(projectPath, "src", "main", "resources")
 
         project.extensions.add("languageServer", LanguageServerExtension::class.java)
         extension = project.extensions.getByType(LanguageServerExtension::class.java)
