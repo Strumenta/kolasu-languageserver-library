@@ -19,6 +19,7 @@ class TestRPGKolasuServer : TestKolasuServer<CompilationUnit>() {
     override var symbolResolver: SymbolResolver? = RPGSymbolResolverAdapter()
 
     private val fibonacciFile = Paths.get("src", "test", "resources", "fibonacci.rpgle").toUri().toString()
+    private val inexistentFile = Paths.get("inexistent").toUri().toString()
     private val symbolPosition = Position(19, 38)
     private val noSymbolPosition = Position(14, 1)
     private val externalSymbolPosition = Position(40, 52)
@@ -34,6 +35,36 @@ class TestRPGKolasuServer : TestKolasuServer<CompilationUnit>() {
         code = Files.readString(fibonacciPath)
         expectDiagnostics(0)
         change(fibonacciFile, code)
+    }
+
+    @Test
+    fun testChangeInexistentFile() {
+        expectDiagnostics(0)
+        change(inexistentFile, "code")
+    }
+
+    @Test
+    fun testOutline() {
+        val outline = outline(fibonacciFile)!!
+
+        assertEquals("Named tree", outline.name)
+        assertEquals(11, outline.children.size)
+
+        for (i in 0..10) {
+            val child = outline.children[i]
+            if (i == 6) {
+                assertEquals(4, child.children.size)
+            } else {
+                assertEquals(0, child.children.size)
+            }
+        }
+    }
+
+    @Test
+    fun testOutlineOfInexistentFile() {
+        val outline = outline(inexistentFile)
+
+        assertEquals(null, outline)
     }
 
     @Test

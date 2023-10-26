@@ -9,6 +9,8 @@ import com.strumenta.languageserver.SymbolResolver
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
+import org.eclipse.lsp4j.DocumentSymbol
+import org.eclipse.lsp4j.DocumentSymbolParams
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.Location
@@ -63,6 +65,12 @@ open class TestKolasuServer<T : Node>() {
         return server.didChange(parameters)
     }
 
+    protected open fun outline(uri: String): DocumentSymbol? {
+        val document = TextDocumentIdentifier(uri)
+        val parameters = DocumentSymbolParams(document)
+
+        return server.documentSymbol(parameters).get()?.first()?.right
+    }
     protected open fun expectDiagnostics(amount: Int) {
         server.connect(DiagnosticSizeCheckerClient(amount))
     }
