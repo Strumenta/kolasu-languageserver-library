@@ -127,8 +127,8 @@ class LanguageServerPlugin : Plugin<Project?> {
                     package com.strumenta.${extension.language}.languageserver
         
                     import com.strumenta.${extension.language}.parser.${extension.language.capitalized()}KolasuParser
-                    import com.strumenta.kolasu.languageserver.library.KolasuServer
-                    import com.strumenta.kolasu.languageserver.library.ScopelessSymbolResolver
+                    import com.strumenta.languageserver.KolasuServer
+                    import com.strumenta.languageserver.ScopelessSymbolResolver
         
                     fun main(arguments: Array<String>) {
                         val language = arguments[0]
