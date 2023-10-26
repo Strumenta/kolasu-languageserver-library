@@ -1,4 +1,4 @@
-package com.strumenta.kolasu.languageserver.library
+package com.strumenta.languageserver.test
 
 import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams
@@ -17,27 +17,18 @@ class DiagnosticSizeCheckerClient(private val expectedDiagnostics: Int) : Langua
         assertEquals(expectedDiagnostics, diagnostics?.diagnostics?.size)
     }
 
-    override fun telemetryEvent(`object`: Any?) {
-    }
-
-    override fun logMessage(message: MessageParams?) {
-    }
-
-    override fun showMessage(messageParams: MessageParams?) {
-    }
-
     override fun showMessageRequest(requestParams: ShowMessageRequestParams?): CompletableFuture<MessageActionItem> {
         return CompletableFuture.completedFuture(null)
     }
-
     override fun registerCapability(params: RegistrationParams?): CompletableFuture<Void> {
         return CompletableFuture.completedFuture(null)
     }
-
     override fun createProgress(params: WorkDoneProgressCreateParams?): CompletableFuture<Void> {
         return CompletableFuture.completedFuture(null)
     }
 
-    override fun notifyProgress(params: ProgressParams?) {
-    }
+    override fun notifyProgress(params: ProgressParams?) {}
+    override fun telemetryEvent(message: Any?) {}
+    override fun logMessage(message: MessageParams?) {}
+    override fun showMessage(message: MessageParams?) {}
 }

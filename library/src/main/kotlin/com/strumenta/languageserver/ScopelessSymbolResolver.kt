@@ -1,4 +1,4 @@
-package com.strumenta.kolasu.languageserver.library
+package com.strumenta.languageserver
 
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.PossiblyNamed

@@ -1,4 +1,4 @@
-package com.strumenta.kolasu.languageserver.library
+package com.strumenta.languageserver
 
 import com.google.gson.JsonObject
 import com.strumenta.kolasu.model.Node
@@ -105,7 +105,7 @@ import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
-open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, protected open val language: String = "", protected open val extensions: List<String> = listOf(), protected open val symbolResolver: SymbolResolver? = null, protected open val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, protected open val language: String = "", protected open val extensions: List<String> = listOf(), protected open val symbolResolver: SymbolResolver? = null, protected open val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected open lateinit var client: LanguageClient
     protected open var configuration: JsonObject = JsonObject()
@@ -202,7 +202,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
         for (file in Files.list(directory)) {
             if (file.isDirectory()) {
                 collectFilesIn(file, result)
-            } else if (extensions.contains(file.extension)) {
+            } else if (extensions.contains(file.extension) || extensions.isEmpty()) {
                 result.add(file)
             }
         }
@@ -240,7 +240,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>, prote
     }
 
     open fun parseAndPublishDiagnostics(text: String, uri: String) {
-        val parsingResult = parser.parse(text)
+        val parsingResult = parser?.parse(text) ?: return
         symbolResolver?.resolveSymbols(parsingResult.root, uri)
         files[uri] = parsingResult
 

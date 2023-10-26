@@ -1,6 +1,7 @@
-package com.strumenta.kolasu.languageserver.library
+package com.strumenta.languageserver.test.rpg
 
 import com.strumenta.kolasu.model.Node
+import com.strumenta.languageserver.SymbolResolver
 import com.strumenta.rpgparser.model.CompilationUnit
 import com.strumenta.rpgparser.symbolresolution.RPGExternalProcessor
 import com.strumenta.rpgparser.symbolresolution.RPGSymbolResolver
