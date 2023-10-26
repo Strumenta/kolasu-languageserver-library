@@ -1,3 +1,5 @@
+import java.nio.file.Paths
+
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.8.22"
     id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
@@ -32,6 +34,12 @@ tasks.test {
     useJUnitPlatform()
 }
 
+tasks.register<Jar>("createTestJar") {
+    archiveClassifier = "library-test"
+    from(Paths.get("src", "test", "kotlin"))
+    exclude("com/strumenta/languageserver/test/rpg*")
+}
+
 publishing {
     repositories {
         maven {
@@ -43,11 +51,18 @@ publishing {
         }
     }
     publications {
-        create<MavenPublication>("mavenJava") {
+        create<MavenPublication>("library") {
             groupId = "com.strumenta"
             artifactId = "language-server"
             version = "0.0.0"
             from(components["java"])
         }
+        create<MavenPublication>("testLibrary") {
+            groupId = "com.strumenta"
+            artifactId = "language-server-test"
+            version = "0.0.0"
+            artifact(tasks.getByName<Jar>("createTestJar"))
+        }
     }
 }
+
