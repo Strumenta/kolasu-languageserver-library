@@ -9,6 +9,7 @@ import com.strumenta.languageserver.SymbolResolver
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
+import org.eclipse.lsp4j.DidOpenTextDocumentParams
 import org.eclipse.lsp4j.DocumentSymbol
 import org.eclipse.lsp4j.DocumentSymbolParams
 import org.eclipse.lsp4j.InitializeParams
@@ -19,6 +20,7 @@ import org.eclipse.lsp4j.ReferenceContext
 import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.TextDocumentContentChangeEvent
 import org.eclipse.lsp4j.TextDocumentIdentifier
+import org.eclipse.lsp4j.TextDocumentItem
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
 import org.eclipse.lsp4j.WorkspaceFolder
 import org.junit.jupiter.api.BeforeEach
@@ -55,6 +57,13 @@ open class TestKolasuServer<T : Node>() {
         server.didChangeConfiguration(DidChangeConfigurationParams(configuration))
 
         return server
+    }
+
+    protected open fun open(uri: String, text: String) {
+        val textDocument = TextDocumentItem(uri, "", 0, text)
+        val parameters = DidOpenTextDocumentParams(textDocument)
+
+        server.didOpen(parameters)
     }
 
     protected open fun change(uri: String, text: String) {

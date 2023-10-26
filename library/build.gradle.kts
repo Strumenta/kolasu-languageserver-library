@@ -35,7 +35,7 @@ tasks.test {
 }
 
 tasks.register<Jar>("createTestJar") {
-    archiveClassifier = "library-test"
+    archiveBaseName = "library-test"
     from(Paths.get("src", "test", "kotlin"))
     exclude("com/strumenta/languageserver/test/rpg*")
 }
@@ -51,17 +51,17 @@ publishing {
         }
     }
     publications {
-        create<MavenPublication>("library") {
+        create<MavenPublication>("language-server") {
             groupId = "com.strumenta"
             artifactId = "language-server"
             version = "0.0.0"
-            from(components["java"])
+            artifact(tasks.getByName("jar"))
         }
-        create<MavenPublication>("testLibrary") {
+        create<MavenPublication>("language-server-test") {
             groupId = "com.strumenta"
             artifactId = "language-server-test"
             version = "0.0.0"
-            artifact(tasks.getByName<Jar>("createTestJar"))
+            artifact(tasks.getByName("createTestJar"))
         }
     }
 }
