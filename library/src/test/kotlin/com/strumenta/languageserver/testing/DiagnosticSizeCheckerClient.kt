@@ -1,4 +1,4 @@
-package com.strumenta.languageserver.test
+package com.strumenta.languageserver.testing
 
 import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams

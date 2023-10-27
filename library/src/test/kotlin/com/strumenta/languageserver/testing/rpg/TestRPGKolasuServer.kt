@@ -1,8 +1,8 @@
-package com.strumenta.languageserver.test.rpg
+package com.strumenta.languageserver.testing.rpg
 
 import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.languageserver.SymbolResolver
-import com.strumenta.languageserver.test.TestKolasuServer
+import com.strumenta.languageserver.testing.TestKolasuServer
 import com.strumenta.rpgparser.RPGKolasuParser
 import com.strumenta.rpgparser.model.CompilationUnit
 import org.eclipse.lsp4j.Position

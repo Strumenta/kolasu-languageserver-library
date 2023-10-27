@@ -61,8 +61,9 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.dependencies.add("implementation", "org.apache.lucene:lucene-core:9.8.0")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-codecs:9.8.0")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-queryparser:9.8.0")
-        project.dependencies.add("testImplementation", "org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
+
         project.dependencies.add("testImplementation", "com.strumenta:language-server-test:0.0.0")
+        project.dependencies.add("testImplementation", "org.junit.jupiter:junit-jupiter:5.+")
 
         val projectPath = project.projectDir.toString()
         val language = project.rootProject.name
@@ -92,6 +93,9 @@ class LanguageServerPlugin : Plugin<Project?> {
         shadowJar.manifest.attributes["Class-Path"] = "lucene-core-9.8.0.jar lucene-codecs-9.8.0.jar"
         shadowJar.archiveFileName.set("$language.jar")
         shadowJar.excludes.add("org/apache/lucene/**/*")
+
+        val testTask = project.tasks.getByName("test") as org.gradle.api.tasks.testing.Test
+        testTask.useJUnitPlatform()
 
         addCreateVscodeExtensionTask(project)
         addLaunchVscodeEditorTask(project)

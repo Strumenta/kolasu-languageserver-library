@@ -19,7 +19,7 @@ gradlePlugin {
     plugins {
         create("language-server-plugin") {
             group = "com.strumenta"
-            id = "language-server-plugin"
+            id = "com.strumenta.language-server-plugin"
             version = "0.0.0"
             implementationClass = "com.strumenta.languageserver.LanguageServerPlugin"
         }
@@ -34,12 +34,6 @@ publishing {
                 username = (if (extra.has("starlasu.github.user")) extra["starlasu.github.user"] else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
                 password = (if (extra.has("starlasu.github.token")) extra["starlasu.github.token"] else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
             }
-        }
-    }
-    publications {
-        create<MavenPublication>("language-server-plugin") {
-            artifactId = "language-server-plugin"
-            from(components["java"])
         }
     }
 }

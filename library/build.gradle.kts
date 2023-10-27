@@ -36,8 +36,9 @@ tasks.test {
 
 tasks.register<Jar>("createTestJar") {
     archiveBaseName = "library-test"
-    from(Paths.get("src", "test", "kotlin"))
-    exclude("com/strumenta/languageserver/test/rpg*")
+    from(Paths.get("build", "classes", "kotlin", "test"))
+    exclude("com/strumenta/languageserver/testing/rpg*")
+    dependsOn(tasks.getByName("compileTestKotlin"))
 }
 
 publishing {

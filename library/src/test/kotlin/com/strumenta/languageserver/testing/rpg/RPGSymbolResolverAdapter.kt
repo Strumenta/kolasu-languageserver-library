@@ -1,4 +1,4 @@
-package com.strumenta.languageserver.test.rpg
+package com.strumenta.languageserver.testing.rpg
 
 import com.strumenta.kolasu.model.Node
 import com.strumenta.languageserver.SymbolResolver
