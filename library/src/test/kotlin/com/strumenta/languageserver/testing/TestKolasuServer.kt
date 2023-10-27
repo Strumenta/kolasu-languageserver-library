@@ -27,16 +27,14 @@ import org.junit.jupiter.api.BeforeEach
 import java.nio.file.Path
 import java.nio.file.Paths
 
-open class TestKolasuServer<T : Node>() {
-
-    protected open var parser: ASTParser<T>? = null
-    protected open var symbolResolver: SymbolResolver? = null
-    protected open var generator: CodeGenerator<T>? = null
-
-    protected open var language: String = "languageserver"
-    protected open var fileExtensions: List<String> = listOf()
-
+open class TestKolasuServer<T : Node>(
+    protected open var parser: ASTParser<T>? = null,
+    protected open var symbolResolver: SymbolResolver? = null,
+    protected open var codeGenerator: CodeGenerator<T>? = null,
+    protected open var language: String = "languageserver",
+    protected open var fileExtensions: List<String> = listOf(),
     protected open var workspacePath: Path = Paths.get("src", "test", "resources")
+) {
 
     protected open lateinit var server: KolasuServer<T>
 
@@ -46,7 +44,7 @@ open class TestKolasuServer<T : Node>() {
     }
 
     protected open fun initializeServer(): KolasuServer<T> {
-        val server = KolasuServer(parser, language, fileExtensions, symbolResolver, generator)
+        val server = KolasuServer(parser, language, fileExtensions, symbolResolver, codeGenerator)
         server.connect(DiagnosticSizeCheckerClient(0))
         val workspace = workspacePath.toUri().toString()
         server.initialize(InitializeParams().apply { workspaceFolders = mutableListOf(WorkspaceFolder(workspace)) })

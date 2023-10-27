@@ -1,7 +1,5 @@
 package com.strumenta.languageserver.testing.rpg
 
-import com.strumenta.kolasu.parsing.ASTParser
-import com.strumenta.languageserver.SymbolResolver
 import com.strumenta.languageserver.testing.TestKolasuServer
 import com.strumenta.rpgparser.RPGKolasuParser
 import com.strumenta.rpgparser.model.CompilationUnit
@@ -13,13 +11,10 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.io.path.toPath
 
-class TestRPGKolasuServer : TestKolasuServer<CompilationUnit>() {
-
-    override var parser: ASTParser<CompilationUnit>? = RPGKolasuParser()
-    override var symbolResolver: SymbolResolver? = RPGSymbolResolverAdapter()
+class TestRPGKolasuServer : TestKolasuServer<CompilationUnit>(RPGKolasuParser(), RPGSymbolResolverAdapter()) {
 
     private val fibonacciFile = Paths.get("src", "test", "resources", "fibonacci.rpgle").toUri().toString()
-    private val inexistentFile = Paths.get("inexistent").toUri().toString()
+    private val inexistentFile = "inexistentFile"
     private val symbolPosition = Position(19, 38)
     private val noSymbolPosition = Position(14, 1)
     private val externalSymbolPosition = Position(40, 52)
