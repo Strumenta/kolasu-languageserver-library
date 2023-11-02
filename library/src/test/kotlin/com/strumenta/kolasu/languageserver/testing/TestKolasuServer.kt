@@ -23,6 +23,7 @@ import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.TextDocumentItem
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
 import org.eclipse.lsp4j.WorkspaceFolder
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import java.nio.file.Files
 import java.nio.file.Path
@@ -48,7 +49,8 @@ open class TestKolasuServer<T : Node>(
 
     protected open fun initializeServer(): KolasuServer<T> {
         val server = KolasuServer(parser, language, fileExtensions, symbolResolver, codeGenerator)
-        server.connect(DiagnosticSizeCheckerClient(0))
+        expectDiagnostics(0)
+
         val workspace = workspacePath.toUri().toString()
         server.initialize(InitializeParams().apply { workspaceFolders = mutableListOf(WorkspaceFolder(workspace)) })
         server.initialized(InitializedParams())
@@ -61,7 +63,11 @@ open class TestKolasuServer<T : Node>(
     }
 
     protected open fun expectDiagnostics(amount: Int) {
-        server.connect(DiagnosticSizeCheckerClient(amount))
+        server.connect(
+            DiagnosticListenerClient {
+                assertEquals(amount, it.diagnostics.size)
+            }
+        )
     }
 
     protected open fun open(uri: String, text: String) {
