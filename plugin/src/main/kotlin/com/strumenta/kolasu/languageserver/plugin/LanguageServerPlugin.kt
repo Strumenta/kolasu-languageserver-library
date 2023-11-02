@@ -116,16 +116,14 @@ class LanguageServerPlugin : Plugin<Project?> {
                     package com.strumenta.${configuration.language}.languageserver
         
                     import com.strumenta.${configuration.language}.parser.${configuration.language.capitalized()}KolasuParser
-                    import com.strumenta.languageserver.KolasuServer
-                    import com.strumenta.languageserver.ScopelessSymbolResolver
+                    import com.strumenta.kolasu.languageserver.KolasuServer
+                    import com.strumenta.kolasu.languageserver.ScopelessSymbolResolver
         
-                    fun main(arguments: Array<String>) {
-                        val language = arguments[0]
-                        val fileExtensions = arguments[1].split(",")
+                    fun main() {
+                        val parser = ${configuration.language.capitalized()}KolasuParser()
                         val symbolResolver = ScopelessSymbolResolver()
                         
-                        val parser = ${configuration.language.capitalized()}KolasuParser()
-                        val server = KolasuServer(parser, language, fileExtensions, symbolResolver)
+                        val server = KolasuServer(parser, "${configuration.language}", listOf(${configuration.fileExtensions.joinToString(",") { "\"$it\"" }}), symbolResolver)
                         server.startCommunication()
                     }
                     """.trimIndent()
