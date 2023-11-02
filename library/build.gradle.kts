@@ -1,5 +1,3 @@
-import java.nio.file.Paths
-
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.8.22"
     id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
@@ -8,13 +6,6 @@ plugins {
 
 repositories {
     mavenCentral()
-    maven {
-        url = uri("https://maven.pkg.github.com/Strumenta/rpg-parser")
-        credentials {
-            username = (if (extra.has("starlasu.github.user")) extra["starlasu.github.user"] else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
-            password = (if (extra.has("starlasu.github.token")) extra["starlasu.github.token"] else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
-        }
-    }
 }
 
 dependencies {
@@ -26,19 +17,11 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.1")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:5.6.0")
-    testImplementation("com.strumenta:rpg-parser:2.1.30")
-    testImplementation("com.strumenta:rpg-parser-symbol-resolution:2.1.30")
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
-
-tasks.register<Jar>("createTestJar") {
+tasks.register<Jar>("jarTest") {
+    from(tasks.getByName("compileTestKotlin"))
     archiveBaseName = "library-test"
-    from(Paths.get("build", "classes", "kotlin", "test"))
-    exclude("com/strumenta/languageserver/testing/rpg*")
-    dependsOn(tasks.getByName("compileTestKotlin"))
 }
 
 publishing {
@@ -53,16 +36,16 @@ publishing {
     }
     publications {
         create<MavenPublication>("language-server") {
-            groupId = "com.strumenta"
+            groupId = "com.strumenta.kolasu"
             artifactId = "language-server"
             version = "0.0.0"
             artifact(tasks.getByName("jar"))
         }
         create<MavenPublication>("language-server-test") {
-            groupId = "com.strumenta"
+            groupId = "com.strumenta.kolasu"
             artifactId = "language-server-test"
             version = "0.0.0"
-            artifact(tasks.getByName("createTestJar"))
+            artifact(tasks.getByName("jarTest"))
         }
     }
 }

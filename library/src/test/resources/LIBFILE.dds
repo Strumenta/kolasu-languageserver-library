@@ -1,5 +1,0 @@
-     A*SECTION 00
-     A*SECTION 01
-     A          R FLDREFFLE                 TEXT('Field Reference File')
-     A            AID            2          TEXT('Record Identifier')
-     A                                      COLHDG('Rcd' 'Id')

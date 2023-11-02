@@ -1,4 +1,4 @@
-package com.strumenta.languageserver
+package com.strumenta.kolasu.languageserver
 
 import com.google.gson.JsonObject
 import com.strumenta.kolasu.model.Node

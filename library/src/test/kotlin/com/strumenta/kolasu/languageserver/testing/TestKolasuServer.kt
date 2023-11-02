@@ -1,11 +1,11 @@
-package com.strumenta.languageserver.testing
+package com.strumenta.kolasu.languageserver.testing
 
 import com.google.gson.JsonObject
+import com.strumenta.kolasu.languageserver.CodeGenerator
+import com.strumenta.kolasu.languageserver.KolasuServer
+import com.strumenta.kolasu.languageserver.SymbolResolver
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.parsing.ASTParser
-import com.strumenta.languageserver.CodeGenerator
-import com.strumenta.languageserver.KolasuServer
-import com.strumenta.languageserver.SymbolResolver
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
@@ -60,6 +60,10 @@ open class TestKolasuServer<T : Node>(
         return server
     }
 
+    protected open fun expectDiagnostics(amount: Int) {
+        server.connect(DiagnosticSizeCheckerClient(amount))
+    }
+
     protected open fun open(uri: String, text: String) {
         val textDocument = TextDocumentItem(uri, "", 0, text)
         val parameters = DidOpenTextDocumentParams(textDocument)
@@ -80,9 +84,6 @@ open class TestKolasuServer<T : Node>(
         val parameters = DocumentSymbolParams(document)
 
         return server.documentSymbol(parameters).get()?.first()?.right
-    }
-    protected open fun expectDiagnostics(amount: Int) {
-        server.connect(DiagnosticSizeCheckerClient(amount))
     }
 
     protected open fun definition(uri: String, position: Position): Location? {
