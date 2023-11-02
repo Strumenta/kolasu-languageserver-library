@@ -256,6 +256,10 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
             if (uuid[node] == null) continue
             document.add(StringField("uuid", uuid[node], Field.Store.YES))
             document.add(StringField("uri", uri, Field.Store.YES))
+            node.parent?.let { parent ->
+                document.add(StringField("parent", uuid[parent], Field.Store.YES))
+            }
+            document.add(StringField("children", node.children.filter { uuid[it] != null }.joinToString(",") { uuid[it]!! }, Field.Store.YES))
             node.position?.let { position ->
                 document.add(IntField("startLine", position.start.line, Field.Store.YES))
                 document.add(IntField("startColumn", position.start.column, Field.Store.YES))
