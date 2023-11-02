@@ -1,8 +1,8 @@
 plugins {
-    id("java-gradle-plugin")
-    id("maven-publish")
     id("org.jetbrains.kotlin.jvm") version "1.8.22"
     id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
+    id("maven-publish")
+    id("java-gradle-plugin")
 }
 
 repositories {
@@ -17,11 +17,11 @@ dependencies {
 
 gradlePlugin {
     plugins {
-        create("language-server-plugin") {
-            group = "com.strumenta"
-            id = "com.strumenta.language-server-plugin"
+        create("com.strumenta.kolasu.language-server-plugin") {
+            group = "com.strumenta.kolasu"
+            id = "com.strumenta.kolasu.language-server-plugin"
             version = "0.0.0"
-            implementationClass = "com.strumenta.languageserver.LanguageServerPlugin"
+            implementationClass = "com.strumenta.kolasu.languageserver.plugin.LanguageServerPlugin"
         }
     }
 }
