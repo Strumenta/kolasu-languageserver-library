@@ -24,8 +24,11 @@ import org.eclipse.lsp4j.TextDocumentItem
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier
 import org.eclipse.lsp4j.WorkspaceFolder
 import org.junit.jupiter.api.BeforeEach
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.io.path.extension
+import kotlin.system.measureNanoTime
 
 open class TestKolasuServer<T : Node>(
     protected open var parser: ASTParser<T>? = null,
@@ -94,5 +97,27 @@ open class TestKolasuServer<T : Node>(
         val parameters = ReferenceParams(document, position, ReferenceContext(includeDeclaration))
 
         return server.references(parameters).get()
+    }
+
+    protected fun requestAtEachPositionInResourceFiles(name: String, request: (String, Position) -> Unit): List<Long> {
+        val timings = mutableListOf<Long>()
+
+        for (file in Files.list(workspacePath)) {
+            if (fileExtensions.contains(file.extension)) {
+                val uri = file.toUri().toString()
+                val lines = Files.readAllLines(file)
+
+                for (lineNumber in 0 until lines.size) {
+                    for (characterNumber in lines[lineNumber].indices) {
+                        timings.add(measureNanoTime { request(uri, Position(lineNumber, characterNumber)) })
+                    }
+                }
+            }
+        }
+
+        Files.createDirectories(Paths.get("build", "performance"))
+        Files.writeString(Paths.get("build", "performance", "$name.csv"), timings.joinToString("\n"))
+
+        return timings
     }
 }
