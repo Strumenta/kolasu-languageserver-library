@@ -44,11 +44,11 @@ open class TestKolasuServer<T : Node>(
 
     @BeforeEach
     fun beforeEach() {
-        server = initializeServer()
+        initializeServer()
     }
 
-    protected open fun initializeServer(): KolasuServer<T> {
-        val server = KolasuServer(parser, language, fileExtensions, symbolResolver, codeGenerator)
+    protected open fun initializeServer() {
+        server = KolasuServer(parser, language, fileExtensions, symbolResolver, codeGenerator)
         expectDiagnostics(0)
 
         val workspace = workspacePath.toUri().toString()
@@ -58,8 +58,6 @@ open class TestKolasuServer<T : Node>(
         val configuration = JsonObject()
         configuration.add(language, JsonObject())
         server.didChangeConfiguration(DidChangeConfigurationParams(configuration))
-
-        return server
     }
 
     protected open fun expectDiagnostics(amount: Int) {
