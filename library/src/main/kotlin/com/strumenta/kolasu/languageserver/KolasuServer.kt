@@ -17,6 +17,7 @@ import org.apache.lucene.document.IntField
 import org.apache.lucene.document.IntPoint
 import org.apache.lucene.document.StringField
 import org.apache.lucene.index.DirectoryReader
+import org.apache.lucene.index.IndexReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
 import org.apache.lucene.index.Term
@@ -101,11 +102,15 @@ import kotlin.io.path.fileSize
 import kotlin.io.path.isDirectory
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.isSubtypeOf
+import kotlin.reflect.jvm.internal.impl.metadata.deserialization.Flags.BooleanFlagField
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
 open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, protected open val language: String = "", protected open val extensions: List<String> = listOf(), protected open val symbolResolver: SymbolResolver? = null, protected open val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+
+    //protected open val writer = IndexWriter(FSDirectory.open(Paths.get("indexes")), IndexWriterConfig().apply { openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND })
+    //protected open val reader = IndexSearcher(DirectoryReader.open(FSDirectory.open(Paths.get("indexes"))))
 
     protected open lateinit var client: LanguageClient
     protected open var configuration: JsonObject = JsonObject()
@@ -254,6 +259,9 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         for (node in tree.walk()) {
             val document = Document()
             if (uuid[node] == null) continue
+            if (node == tree) {
+                document.add(IntField("root", 1, Field.Store.YES))
+            }
             document.add(StringField("uuid", uuid[node], Field.Store.YES))
             document.add(StringField("uri", uri, Field.Store.YES))
             node.parent?.let { parent ->
@@ -323,11 +331,12 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
 
     override fun documentSymbol(params: DocumentSymbolParams?): CompletableFuture<MutableList<Either<SymbolInformation, DocumentSymbol>>> {
         val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
-        val root = files[uri]?.root ?: return CompletableFuture.completedFuture(null)
-        val rootPosition = root.position ?: return CompletableFuture.completedFuture(null)
+        val rootDocumentId = indexSearcher.search(IntPoint.newExactQuery("root", 1), 1).scoreDocs?.first()?.doc!!
+        val root = indexSearcher.storedFields().document(rootDocumentId)
+        val range = toLSPLocation(root).range
 
-        val namedTree = DocumentSymbol("Named tree", SymbolKind.Variable, toLSPRange(rootPosition), toLSPRange(rootPosition), "", mutableListOf())
-        appendNamedChildren(root, namedTree)
+        val namedTree = DocumentSymbol("Named tree", SymbolKind.Variable, range, range, "", mutableListOf())
+        //appendNamedChildren(root, namedTree)
 
         return CompletableFuture.completedFuture(mutableListOf(Either.forRight(namedTree)))
     }
