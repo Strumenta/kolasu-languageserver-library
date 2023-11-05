@@ -17,7 +17,6 @@ import org.apache.lucene.document.IntField
 import org.apache.lucene.document.IntPoint
 import org.apache.lucene.document.StringField
 import org.apache.lucene.index.DirectoryReader
-import org.apache.lucene.index.IndexReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
 import org.apache.lucene.index.Term
@@ -89,6 +88,7 @@ import org.eclipse.lsp4j.services.LanguageClientAware
 import org.eclipse.lsp4j.services.LanguageServer
 import org.eclipse.lsp4j.services.TextDocumentService
 import org.eclipse.lsp4j.services.WorkspaceService
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.URI
@@ -97,20 +97,13 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import kotlin.io.path.extension
-import kotlin.io.path.fileSize
-import kotlin.io.path.isDirectory
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.isSubtypeOf
-import kotlin.reflect.jvm.internal.impl.metadata.deserialization.Flags.BooleanFlagField
 import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
 open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, protected open val language: String = "", protected open val extensions: List<String> = listOf(), protected open val symbolResolver: SymbolResolver? = null, protected open val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
-
-    //protected open val writer = IndexWriter(FSDirectory.open(Paths.get("indexes")), IndexWriterConfig().apply { openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND })
-    //protected open val reader = IndexSearcher(DirectoryReader.open(FSDirectory.open(Paths.get("indexes"))))
 
     protected open lateinit var client: LanguageClient
     protected open var configuration: JsonObject = JsonObject()
@@ -136,10 +129,42 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
     }
 
     override fun initialize(params: InitializeParams?): CompletableFuture<InitializeResult> {
-        val workspaceFolders = params?.workspaceFolders ?: return CompletableFuture.completedFuture(null)
-        for (folder in workspaceFolders) {
-            folders.add(folder.uri)
+        val workspaceFolders = params?.workspaceFolders
+        if (workspaceFolders != null) {
+            for (folder in workspaceFolders) {
+                folders.add(folder.uri)
+            }
         }
+
+        val capabilities = ServerCapabilities()
+
+        capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
+        capabilities.setWorkspaceSymbolProvider(true)
+
+        capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
+        capabilities.setDocumentSymbolProvider(true)
+
+        if (symbolResolver != null) {
+            capabilities.setDefinitionProvider(true)
+            capabilities.setReferencesProvider(true)
+        }
+
+        return CompletableFuture.completedFuture(InitializeResult(capabilities))
+    }
+
+    override fun initialized(params: InitializedParams?) {
+        val watchers = mutableListOf<FileSystemWatcher>()
+        for (folder in folders) {
+            watchers.add(FileSystemWatcher(Either.forLeft(URI(folder).path + """/**/*{${extensions.joinToString(","){".$it"}}}""")))
+        }
+        client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions(watchers)))))
+
+        client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeConfiguration", "workspace/didChangeConfiguration", object { val section = language }))))
+    }
+
+    override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
+        val settings = params?.settings as? JsonObject ?: return
+        configuration = settings[language].asJsonObject
 
         if (Files.exists(indexPath)) {
             indexPath.toFile().deleteRecursively()
@@ -149,68 +174,20 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         indexWriter = IndexWriter(indexDirectory, indexConfiguration)
         commitIndex()
 
-        val capabilities = ServerCapabilities()
-        capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
-        capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
-        capabilities.setDocumentSymbolProvider(true)
-        capabilities.setDefinitionProvider(true)
-        capabilities.setReferencesProvider(true)
-        capabilities.setRenameProvider(true)
-        capabilities.setHoverProvider(true)
-        capabilities.setWorkspaceSymbolProvider(true)
-        return CompletableFuture.completedFuture(InitializeResult(capabilities))
-    }
-
-    protected open fun commitIndex() {
-        indexWriter.commit()
-        val reader = DirectoryReader.open(FSDirectory.open(indexPath))
-        indexSearcher = IndexSearcher(reader)
-    }
-
-    override fun initialized(params: InitializedParams?) {
-        data class DidChangeConfigurationRegistrationOptions(val section: String)
-        val registrationParams = DidChangeConfigurationRegistrationOptions(language)
-        client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeConfiguration", "workspace/didChangeConfiguration", registrationParams))))
-
-        val watchers = mutableListOf<FileSystemWatcher>()
+        client.createProgress(WorkDoneProgressCreateParams(Either.forLeft("indexing")))
+        client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing" })))
         for (folder in folders) {
-            watchers.add(FileSystemWatcher(Either.forLeft(URI(folder).path + """/**/*{${extensions.joinToString(","){".$it"}}}""")))
-        }
-        client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions(watchers)))))
-    }
-
-    override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
-        val settings = params?.settings as? JsonObject ?: return
-        configuration = settings[language].asJsonObject
-
-        client.createProgress(WorkDoneProgressCreateParams(Either.forLeft("parsingFolders")))
-        client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing"; message = "0 out of 5"; })))
-        client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { percentage = 0 })))
-        for (folder in folders) {
-            val projectFiles = mutableListOf<Path>()
-            collectFilesIn(Paths.get(URI(folder)), projectFiles)
-
-            val totalBytes = projectFiles.sumOf { it.fileSize() }
+            val projectFiles = File(URI(folder)).walk().filter { extensions.contains(it.extension) }.toList()
+            val totalBytes = projectFiles.sumOf { it.length() }
             var parsedBytes = 0L
             for (file in projectFiles) {
-                parseAndPublishDiagnostics(Files.readString(file), file.toUri().toString())
-
-                parsedBytes += file.fileSize()
+                index(file.toURI().toString(), Files.readString(file.toPath()))
+                parsedBytes += file.length()
                 val percentage = (parsedBytes * 100 / totalBytes).toInt()
-                client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressReport().apply { this.percentage = percentage })))
+                client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressReport().apply { this.percentage = percentage })))
             }
         }
-        client.notifyProgress(ProgressParams(Either.forLeft("parsingFolders"), Either.forLeft(WorkDoneProgressEnd())))
-    }
-
-    protected open fun collectFilesIn(directory: Path, result: MutableList<Path>) {
-        for (file in Files.list(directory)) {
-            if (file.isDirectory()) {
-                collectFilesIn(file, result)
-            } else if (extensions.contains(file.extension) || extensions.isEmpty()) {
-                result.add(file)
-            }
-        }
+        client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressEnd())))
     }
 
     override fun setTrace(params: SetTraceParams?) {
@@ -222,21 +199,21 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         val uri = params?.textDocument?.uri ?: return
         val text = params.textDocument.text
 
-        parseAndPublishDiagnostics(text, uri)
+        index(uri, text)
     }
 
     override fun didChange(params: DidChangeTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = params.contentChanges.first()?.text ?: return
 
-        parseAndPublishDiagnostics(text, uri)
+        index(uri, text)
     }
 
     override fun didClose(params: DidCloseTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = Files.readString(Paths.get(URI(uri)))
 
-        parseAndPublishDiagnostics(text, uri)
+        index(uri, text)
     }
 
     protected open fun invalidateIndexURI(uri: String) {
@@ -244,7 +221,9 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         commitIndex()
     }
 
-    open fun parseAndPublishDiagnostics(text: String, uri: String) {
+    open fun index(uri: String, text: String) {
+        if (!::indexWriter.isInitialized) return
+
         val parsingResult = parser?.parse(text) ?: return
         symbolResolver?.resolveSymbols(parsingResult.root, uri)
         files[uri] = parsingResult
@@ -264,10 +243,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
             }
             document.add(StringField("uuid", uuid[node], Field.Store.YES))
             document.add(StringField("uri", uri, Field.Store.YES))
-            node.parent?.let { parent ->
-                document.add(StringField("parent", uuid[parent], Field.Store.YES))
-            }
-            document.add(StringField("children", node.children.filter { uuid[it] != null }.joinToString(",") { uuid[it]!! }, Field.Store.YES))
             node.position?.let { position ->
                 document.add(IntField("startLine", position.start.line, Field.Store.YES))
                 document.add(IntField("startColumn", position.start.column, Field.Store.YES))
@@ -331,12 +306,11 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
 
     override fun documentSymbol(params: DocumentSymbolParams?): CompletableFuture<MutableList<Either<SymbolInformation, DocumentSymbol>>> {
         val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
-        val rootDocumentId = indexSearcher.search(IntPoint.newExactQuery("root", 1), 1).scoreDocs?.first()?.doc!!
-        val root = indexSearcher.storedFields().document(rootDocumentId)
-        val range = toLSPLocation(root).range
+        val root = files[uri]?.root ?: return CompletableFuture.completedFuture(null)
+        val range = toLSPRange(root.position!!)
 
         val namedTree = DocumentSymbol("Named tree", SymbolKind.Variable, range, range, "", mutableListOf())
-        //appendNamedChildren(root, namedTree)
+        appendNamedChildren(root, namedTree)
 
         return CompletableFuture.completedFuture(mutableListOf(Either.forRight(namedTree)))
     }
@@ -344,12 +318,10 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
     protected open fun appendNamedChildren(node: Node, parent: DocumentSymbol) {
         var nextParent = parent
         if (node is PossiblyNamed && node.name != null) {
-            node.position?.let {
-                val range = toLSPRange(it)
-                val symbol = DocumentSymbol(node.name, symbolKindOf(node), range, range, "", mutableListOf())
-                parent.children.add(symbol)
-                nextParent = symbol
-            }
+            val range = toLSPRange(node.position!!)
+            val symbol = DocumentSymbol(node.name, symbolKindOf(node), range, range, "", mutableListOf())
+            parent.children.add(symbol)
+            nextParent = symbol
         }
         node.children.forEach { child ->
             appendNamedChildren(child, nextParent)
@@ -515,13 +487,13 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
-                    parseAndPublishDiagnostics(text, uri)
+                    index(uri, text)
                 }
                 FileChangeType.Changed -> {
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
-                    parseAndPublishDiagnostics(text, uri)
+                    index(uri, text)
                 }
                 FileChangeType.Deleted -> {
                     files.remove(change.uri)
@@ -559,6 +531,12 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         client.showMessageRequest(request).thenApply { item -> future.complete(item.title) }
 
         return future
+    }
+
+    protected open fun commitIndex() {
+        indexWriter.commit()
+        val reader = DirectoryReader.open(FSDirectory.open(indexPath))
+        indexSearcher = IndexSearcher(reader)
     }
 }
 
