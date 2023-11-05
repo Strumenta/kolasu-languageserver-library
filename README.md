@@ -21,7 +21,21 @@ The easiest way to use this library is to:
 4. run the `createVscodeExtension` gradle task
 5. run the `launchVscodeExtension` gradle task
 
+## Features
+
+Only a subset of the [Language Server Protocol] messages are supported for now.
+
+Thankfully, most of the infrastructure messages are covered. This include:
+* [Lifecycle messages] like initialize and exit
+* [Document synchronization] messages like did open or change a file
+* [Workspace features] like workspace symbols and file watchers
+* [Window features] like showing notifications and progress of tasks
+
+From here on, development can focus on implementing [language features]. For now, only `definition`, `references` and `documentSymbols` are implemented and tested.
+
 ### Initialization
+
+Here is a table to explain the initialization process of the language server:
 
 | Client                                | Server                                    | Notes                                                                        |
 |---------------------------------------|-------------------------------------------|------------------------------------------------------------------------------|
@@ -37,5 +51,11 @@ The easiest way to use this library is to:
 |                                       | publishDiagnostics(uri, diagnostics[])    |                                                                              |
 |                                       | reportProgress(percent)                   | based on the amount of bytes parsed / total amount to parse                  |
 
-### User actions
+If the language server has a symbol resolution module, its capabilities will include the `definition` and `find usages` features, otherwise only parsing errors and document outlines are reported.
 
+[Language Server Protocol]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
+[Lifecycle messages]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#lifeCycleMessages-side
+[Document synchronization]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textSynchronization-side
+[Window features]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#windowFeatures-side
+[Workspace features]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspaceFeatures-side
+[language features]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#languageFeatures-side
