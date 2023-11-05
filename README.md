@@ -21,11 +21,21 @@ The easiest way to use this library is to:
 4. run the `createVscodeExtension` gradle task
 5. run the `launchVscodeExtension` gradle task
 
+## Debugging the language server
+
+By default, the generated language client code, launches the language server with `jvm` with debugger attaching enabled on port 5706.
+
+If using IntelliJ IDEA, one can create a `Remote JVM attach` task that attaches to `localhost:5706`.
+
+Now, when the editor initializes the server, one may attach the debugger to the server process using this task, and intellij will pop up when a breakpoint is hit while using the editor.
+
+If interested in debugging the initializing code, one can enable the `suspend` flag in the jvm execution flags. That way the server process will stop until a debugger is attached.
+
 ## Features
 
 Only a subset of the [Language Server Protocol] messages are supported for now.
 
-Thankfully, most of the infrastructure messages are covered. This include:
+Thankfully, most of the infrastructure messages are covered. These include:
 * [Lifecycle messages] like initialize and exit
 * [Document synchronization] messages like did open or change a file
 * [Workspace features] like workspace symbols and file watchers
