@@ -2,6 +2,25 @@
 
 Given a Kolasu parser, create a language server that communicates with lsp compliant code editors. Essentially providing editors for the language.
 
+## Structure of the project
+
+This repository contains four projects:
+
+1. `library` contains the code to create a language server and respond to lsp requests. Also contains helpers to test language server. These are published as JARs to Github packages.
+2. `plugin` contains the code of a gradle plugin that takes care of adding all the dependencies and adds two tasks: One to create the vscode extension and another to launch it as development extension in an editor.
+3. `examples/entity` is a toy example that uses the language server in its default configuration. Thanks to some conventions, a single line is enough to configure the language server in this case.
+4. `examples/rpg` uses Strumenta's RPG parser and this library to create an editor for RPG files. It supports go to definition and references requests thanks to its symbol resolution module. 
+
+## How to use
+
+The easiest way to use this library is to:
+
+1. add this repository to the sources where gradle looks for plugins
+2. add the `com.strumenta.kolasu.language-server-plugin` version `0.0.0` to the list of gradle plugins
+3. optionally configure the language server by adding a gradle extension called `languageServer`
+4. run the `createVscodeExtension` gradle task
+5. run the `launchVscodeExtension` gradle task
+
 ### Initialization
 
 | Client                                | Server                                    | Notes                                                                        |
