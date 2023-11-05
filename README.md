@@ -33,6 +33,9 @@ Thankfully, most of the infrastructure messages are covered. This include:
 
 From here on, development can focus on implementing [language features]. For now, only `definition`, `references` and `documentSymbols` are implemented and tested.
 
+Many issues exist in this repository with considerations on where to take this project next.
+The `development` branch already contains some code that goes in this direction.
+
 ### Initialization
 
 Here is a table to explain the initialization process of the language server:
@@ -52,6 +55,16 @@ Here is a table to explain the initialization process of the language server:
 |                                       | reportProgress(percent)                   | based on the amount of bytes parsed / total amount to parse                  |
 
 If the language server has a symbol resolution module, its capabilities will include the `definition` and `find usages` features, otherwise only parsing errors and document outlines are reported.
+
+### Definition and references
+
+These two are opposite operations and both rely on having a symbol resolution module in place.
+
+They make heavy use of the lucene index that can be crafted to retrieve information from abstract syntax trees quickly.
+
+Please note that the information in the index is stored more similarly to non-sql databases rather than a traditional tree.
+
+This has its own benefits and problems. For showcasing both scenarios, outlines are creating traversing the tree. However, symbols are looked up using the index.
 
 [Language Server Protocol]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
 [Lifecycle messages]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#lifeCycleMessages-side
