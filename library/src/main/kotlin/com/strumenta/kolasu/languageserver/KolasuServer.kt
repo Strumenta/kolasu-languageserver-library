@@ -43,15 +43,12 @@ import org.eclipse.lsp4j.DocumentSymbol
 import org.eclipse.lsp4j.DocumentSymbolParams
 import org.eclipse.lsp4j.FileChangeType
 import org.eclipse.lsp4j.FileSystemWatcher
-import org.eclipse.lsp4j.Hover
-import org.eclipse.lsp4j.HoverParams
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
 import org.eclipse.lsp4j.LogTraceParams
-import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams
 import org.eclipse.lsp4j.MessageType
@@ -62,7 +59,6 @@ import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.Registration
 import org.eclipse.lsp4j.RegistrationParams
-import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
 import org.eclipse.lsp4j.ShowMessageRequestParams
@@ -71,16 +67,12 @@ import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.TextDocumentPositionParams
 import org.eclipse.lsp4j.TextDocumentSyncKind
 import org.eclipse.lsp4j.TextDocumentSyncOptions
-import org.eclipse.lsp4j.TextEdit
 import org.eclipse.lsp4j.WorkDoneProgressBegin
 import org.eclipse.lsp4j.WorkDoneProgressCreateParams
 import org.eclipse.lsp4j.WorkDoneProgressEnd
 import org.eclipse.lsp4j.WorkDoneProgressReport
-import org.eclipse.lsp4j.WorkspaceEdit
 import org.eclipse.lsp4j.WorkspaceFoldersOptions
 import org.eclipse.lsp4j.WorkspaceServerCapabilities
-import org.eclipse.lsp4j.WorkspaceSymbol
-import org.eclipse.lsp4j.WorkspaceSymbolParams
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.LanguageClient
@@ -139,7 +131,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         val capabilities = ServerCapabilities()
 
         capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
-        capabilities.setWorkspaceSymbolProvider(true)
 
         capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
         capabilities.setDocumentSymbolProvider(true)
@@ -181,7 +172,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
             val totalBytes = projectFiles.sumOf { it.length() }
             var parsedBytes = 0L
             for (file in projectFiles) {
-                index(file.toURI().toString(), Files.readString(file.toPath()))
+                parse(file.toURI().toString(), Files.readString(file.toPath()))
                 parsedBytes += file.length()
                 val percentage = (parsedBytes * 100 / totalBytes).toInt()
                 client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressReport().apply { this.percentage = percentage })))
@@ -199,29 +190,24 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         val uri = params?.textDocument?.uri ?: return
         val text = params.textDocument.text
 
-        index(uri, text)
+        parse(uri, text)
     }
 
     override fun didChange(params: DidChangeTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = params.contentChanges.first()?.text ?: return
 
-        index(uri, text)
+        parse(uri, text)
     }
 
     override fun didClose(params: DidCloseTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = Files.readString(Paths.get(URI(uri)))
 
-        index(uri, text)
+        parse(uri, text)
     }
 
-    protected open fun invalidateIndexURI(uri: String) {
-        indexWriter.deleteDocuments(TermQuery(Term("uri", uri)))
-        commitIndex()
-    }
-
-    open fun index(uri: String, text: String) {
+    open fun parse(uri: String, text: String) {
         if (!::indexWriter.isInitialized) return
 
         val parsingResult = parser?.parse(text) ?: return
@@ -230,7 +216,8 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
 
         val tree = parsingResult.root ?: return
 
-        invalidateIndexURI(uri)
+        indexWriter.deleteDocuments(TermQuery(Term("uri", uri)))
+        commitIndex()
         var id = 0
         for (node in tree.walk()) {
             uuid[node] = "$uri${id++}"
@@ -296,6 +283,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         client.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
     }
 
+    // ? This is a bad workaround. In case nodes contain the sourceText field set properly, its length could be used instead
     protected open fun sizeOf(position: com.strumenta.kolasu.model.Position): Int {
         val lineDifference = position.end.line - position.start.line
         val lineValue = lineDifference * 8000
@@ -329,6 +317,10 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
     }
 
     protected open fun symbolKindOf(node: Node): SymbolKind {
+        return SymbolKind.Variable
+    }
+
+    protected open fun symbolKindOf(document: Document): SymbolKind {
         return SymbolKind.Variable
     }
 
@@ -367,45 +359,7 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         return CompletableFuture.completedFuture(list)
     }
 
-    override fun rename(params: RenameParams?): CompletableFuture<WorkspaceEdit> {
-        val node = getNode(params) ?: return CompletableFuture.completedFuture(null)
-        val uri = params?.textDocument?.uri ?: return CompletableFuture.completedFuture(null)
-        val projectFile = files[uri] ?: return CompletableFuture.completedFuture(null)
-
-        val future = CompletableFuture<WorkspaceEdit>()
-        askClient("Are you sure").thenApply { answer ->
-            if (answer == "No") {
-                future.complete(null)
-            }
-            future.complete(null)
-        }
-        /*val symbol = projectFile.symbols[node.sourceText]
-        if (symbol == null) {
-            future.complete(null)
-        }
-        val edits = symbol!!.references.map { rename(it, params.newName) }.toMutableList()
-        edits.reverse()
-        val textEdits = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, 0), edits)
-        future.complete(WorkspaceEdit(listOf(Either.forLeft(textEdits))))
-        }*/
-
-        return future
-    }
-
-    protected open fun rename(node: Node, newName: String): TextEdit {
-        return TextEdit(toLSPRange(node.position!!), newName)
-    }
-
-    override fun hover(params: HoverParams?): CompletableFuture<Hover> {
-        val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
-        val information = informationFor(document)
-        return CompletableFuture.completedFuture(Hover(MarkupContent("markdown", information)))
-    }
-
-    protected open fun informationFor(document: Document): String {
-        return document.get("size")
-    }
-
+    // ? This is not completely correct, as it assumes that the node at this position is contained in a single line
     protected open fun getDocument(params: TextDocumentPositionParams?): Document? {
         val uri = params?.textDocument?.uri ?: return null
         val position = params.position
@@ -424,13 +378,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
 
         val documentID = results.scoreDocs.last().doc
         return indexSearcher.storedFields().document(documentID)
-    }
-
-    protected open fun getNode(params: TextDocumentPositionParams?): Node? {
-        if (params == null) return null
-        val parsingResult = files[params.textDocument.uri] ?: return null
-        val root = parsingResult.root ?: return null
-        return root.findByPosition(toKolasuRange(params.position))
     }
 
     protected open fun toLSPRange(kolasuRange: com.strumenta.kolasu.model.Position): Range {
@@ -468,17 +415,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         }
     }
 
-    override fun symbol(params: WorkspaceSymbolParams?): CompletableFuture<Either<MutableList<out SymbolInformation>, MutableList<out WorkspaceSymbol>>> {
-        val symbols = mutableListOf<WorkspaceSymbol>()
-        /*for (file in files) {
-            for (symbol in file.value.symbols) {
-                val definition = symbol.value.definition as Node
-                symbols.add(WorkspaceSymbol(symbol.key, symbolKindOf(definition), Either.forLeft(Location(file.key, toLSPRange(definition.position!!)))))
-            }
-        }*/
-        return CompletableFuture.completedFuture(Either.forRight(symbols))
-    }
-
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
         val changes = params?.changes ?: return
         for (change in changes) {
@@ -487,13 +423,13 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
-                    index(uri, text)
+                    parse(uri, text)
                 }
                 FileChangeType.Changed -> {
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
-                    index(uri, text)
+                    parse(uri, text)
                 }
                 FileChangeType.Deleted -> {
                     files.remove(change.uri)
