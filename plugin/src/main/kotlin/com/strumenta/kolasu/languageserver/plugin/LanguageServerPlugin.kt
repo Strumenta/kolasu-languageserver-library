@@ -52,6 +52,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         configuration.language = language
         configuration.version = "0.0.0"
         configuration.publisher = "strumenta"
+        configuration.repository = "https://github.com/Strumenta/kolasu-$language-parser"
         configuration.fileExtensions = mutableListOf(language)
         configuration.editor = "code"
         configuration.textmateGrammarScope = "main"
@@ -162,6 +163,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                     "name": "${configuration.language.lowercase(Locale.getDefault())}",
                     "version": "${configuration.version}",$logo
                     "publisher": "${configuration.publisher}",
+                    "repository": "${configuration.repository}",
                     "contributes":
                     {
                         "languages":
@@ -245,6 +247,6 @@ class LanguageServerPlugin : Plugin<Project?> {
         ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar", "-o", Paths.get(configuration.outputPath.toString(), "lucene-core-9.8.0.jar").toString()).start().waitFor()
         ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar", "-o", Paths.get(configuration.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()).start().waitFor()
 
-        ProcessBuilder("npx", "vsce", "package", "--allow-missing-repository").directory(configuration.outputPath.toFile()).start().waitFor()
+        ProcessBuilder("npx", "vsce@2.15", "package").directory(configuration.outputPath.toFile()).start().waitFor()
     }
 }

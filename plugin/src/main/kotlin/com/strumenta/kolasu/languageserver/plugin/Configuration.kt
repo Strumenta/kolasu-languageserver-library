@@ -7,6 +7,7 @@ open class Configuration {
     lateinit var language: String
     lateinit var version: String
     lateinit var publisher: String
+    lateinit var repository: String
     lateinit var fileExtensions: List<String>
     lateinit var textmateGrammarScope: String
     lateinit var entryPointPath: Path
