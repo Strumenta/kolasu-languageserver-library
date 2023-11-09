@@ -207,7 +207,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         
                 async function activate (context)
                 {
-                    let productionServer = {run: {command: "java", args: ["-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,quiet=y,address=*:5706", "-jar", context.asAbsolutePath("server.jar")]}};
+                    let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar")]}};
         
                     let languageClient = new LanguageClient("${configuration.language}", "${configuration.language} language server", productionServer, {documentSelector: ["${configuration.language}"]});
                     await languageClient.start();
