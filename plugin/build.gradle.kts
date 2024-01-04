@@ -3,6 +3,7 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
     id("maven-publish")
     id("java-gradle-plugin")
+    id("net.researchgate.release") version "3.0.2"
 }
 
 repositories {
@@ -20,7 +21,7 @@ gradlePlugin {
         create("com.strumenta.kolasu.language-server-plugin") {
             group = "com.strumenta.kolasu"
             id = "com.strumenta.kolasu.language-server-plugin"
-            version = "0.0.0"
+            version = project.version
             implementationClass = "com.strumenta.kolasu.languageserver.plugin.LanguageServerPlugin"
         }
     }
@@ -35,5 +36,13 @@ publishing {
                 password = (if (extra.has("starlasu.github.token")) extra["starlasu.github.token"] else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
             }
         }
+    }
+}
+
+release {
+    buildTasks.set(listOf(":publish"))
+    git {
+        requireBranch.set("")
+        pushToRemote.set("origin")
     }
 }
