@@ -1,7 +1,10 @@
+import java.net.URI
+
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.8.22"
     id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
     id("maven-publish")
+    id("signing")
 }
 
 repositories {
@@ -24,13 +27,22 @@ tasks.register<Jar>("jarTest") {
     archiveBaseName = "library-test"
 }
 
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+group = "com.strumenta.kolasu"
+version = "1.0.0"
+
 publishing {
     repositories {
         maven {
-            url = uri("https://maven.pkg.github.com/Strumenta/kolasu-languageserver-library")
+            name = "OSSRH"
+            url = URI("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
             credentials {
-                username = (if (extra.has("starlasu.github.user")) extra["starlasu.github.user"] else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
-                password = (if (extra.has("starlasu.github.token")) extra["starlasu.github.token"] else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
+                username = project.properties["ossrhUser"] as String
+                password = project.properties["osshrPassword"] as String
             }
         }
     }
@@ -38,14 +50,46 @@ publishing {
         create<MavenPublication>("language-server") {
             groupId = "com.strumenta.kolasu"
             artifactId = "language-server"
-            version = "0.0.0"
+            version = "1.0.0"
+
             artifact(tasks.getByName("jar"))
+            artifact(tasks.getByName("sourcesJar"))
+            artifact(tasks.getByName("javadocJar"))
+
+            pom {
+                name = "Kolasu language server"
+                description = "Create a language server for parsers created with Kolasu"
+                inceptionYear = "2023"
+                url = "https://github.com/Strumenta/kolasu-languageserver-library"
+                licenses {
+                    license {
+                        name = "Apache License, Version 2.0"
+                        url = "https://opensource.org/license/apache-2-0/"
+                    }
+                }
+                developers {
+                    developer {
+                        id = "martin-azpillaga"
+                        name = "Martin Azpillaga Aldalur"
+                        email = "martin.azpillaga@strumenta.com"
+                    }
+                }
+                scm {
+                    url = "https://github.com/Strumenta/kolasu-languageserver-library.git"
+                    connection = "scm:git:git:github.com/Strumenta/kolasu-languageserver-library.git"
+                    developerConnection = "scm:git:ssh:github.com/Strumenta/kolasu-languageserver-library.git"
+                }
+            }
         }
-        create<MavenPublication>("language-server-test") {
-            groupId = "com.strumenta.kolasu"
-            artifactId = "language-server-test"
-            version = "0.0.0"
-            artifact(tasks.getByName("jarTest"))
-        }
+//        create<MavenPublication>("language-server-test") {
+//            groupId = "com.strumenta.kolasu"
+//            artifactId = "language-server-test"
+//            version = "0.0.0"
+//            artifact(tasks.getByName("jarTest"))
+//        }
     }
+}
+
+signing {
+    sign(publishing.publications.getByName("language-server"))
 }
