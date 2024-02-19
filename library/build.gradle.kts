@@ -22,9 +22,20 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-engine:5.6.0")
 }
 
-tasks.register<Jar>("jarTest") {
+tasks.register<Jar>("testingJar") {
     from(tasks.getByName("compileTestKotlin"))
-    archiveBaseName = "library-test"
+    archiveBaseName = "library-testing"
+}
+
+tasks.register<Jar>("testingSourcesJar") {
+    from(tasks.getByName("compileTestKotlin").outputs)
+    archiveBaseName = "library-testing"
+    archiveClassifier = "sources"
+}
+
+tasks.register<Jar>("testingJavadocJar") {
+    archiveBaseName = "library-testing"
+    archiveClassifier = "javadoc"
 }
 
 java {
@@ -33,16 +44,18 @@ java {
 }
 
 group = "com.strumenta.kolasu"
-version = "1.0.0"
+
+val isReleaseVersion = !(project.version as String).endsWith("SNAPSHOT")
 
 publishing {
     repositories {
         maven {
-            name = "OSSRH"
-            url = URI("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
+            val releaseRepo = URI("https://oss.sonatype.org/service/local/staging/deploy/maven2/")
+            val snapshotRepo = URI("https://oss.sonatype.org/content/repositories/snapshots/")
+            url = if (isReleaseVersion) releaseRepo else snapshotRepo
             credentials {
-                username = project.properties["ossrhUser"] as String
-                password = project.properties["osshrPassword"] as String
+                username = project.properties["ossrhUsername"] as String
+                password = project.properties["ossrhPassword"] as String
             }
         }
     }
@@ -50,7 +63,7 @@ publishing {
         create<MavenPublication>("language-server") {
             groupId = "com.strumenta.kolasu"
             artifactId = "language-server"
-            version = "1.0.0"
+            version = project.version as String
 
             artifact(tasks.getByName("jar"))
             artifact(tasks.getByName("sourcesJar"))
@@ -80,16 +93,45 @@ publishing {
                     developerConnection = "scm:git:ssh:github.com/Strumenta/kolasu-languageserver-library.git"
                 }
             }
+            create<MavenPublication>("language-server-testing") {
+                groupId = "com.strumenta.kolasu"
+                artifactId = "language-server-testing"
+                version = project.version as String
+
+                artifact(tasks.getByName("testingJar"))
+                artifact(tasks.getByName("testingSourcesJar"))
+                artifact(tasks.getByName("testingJavadocJar"))
+
+                pom {
+                    name = "Kolasu language server testing"
+                    description = "Testing helpers for Kolasu language server library"
+                    inceptionYear = "2023"
+                    url = "https://github.com/Strumenta/kolasu-languageserver-library"
+                    licenses {
+                        license {
+                            name = "Apache License, Version 2.0"
+                            url = "https://opensource.org/license/apache-2-0/"
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = "martin-azpillaga"
+                            name = "Martin Azpillaga Aldalur"
+                            email = "martin.azpillaga@strumenta.com"
+                        }
+                    }
+                    scm {
+                        url = "https://github.com/Strumenta/kolasu-languageserver-library.git"
+                        connection = "scm:git:git:github.com/Strumenta/kolasu-languageserver-library.git"
+                        developerConnection = "scm:git:ssh:github.com/Strumenta/kolasu-languageserver-library.git"
+                    }
+                }
+            }
         }
-//        create<MavenPublication>("language-server-test") {
-//            groupId = "com.strumenta.kolasu"
-//            artifactId = "language-server-test"
-//            version = "0.0.0"
-//            artifact(tasks.getByName("jarTest"))
-//        }
     }
 }
 
 signing {
     sign(publishing.publications.getByName("language-server"))
+    sign(publishing.publications.getByName("language-server-testing"))
 }
