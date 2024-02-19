@@ -4,7 +4,11 @@ plugins {
     id("maven-publish")
     id("java-gradle-plugin")
     id("net.researchgate.release") version "3.0.2"
+    id("com.gradle.plugin-publish") version "1.2.1"
 }
+
+group = "com.strumenta.kolasu"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -17,24 +21,17 @@ dependencies {
 }
 
 gradlePlugin {
+    website = "https://strumenta.com"
+    vcsUrl = "https://github.com/Strumenta/kolasu-languageserver-library"
     plugins {
         create("com.strumenta.kolasu.language-server-plugin") {
             group = "com.strumenta.kolasu"
             id = "com.strumenta.kolasu.language-server-plugin"
             version = project.version
+            displayName = "Kolasu language server plugin"
+            description = "Create language servers from Kolasu parsers"
+            tags = listOf("kolasu", "language-server", "parser")
             implementationClass = "com.strumenta.kolasu.languageserver.plugin.LanguageServerPlugin"
-        }
-    }
-}
-
-publishing {
-    repositories {
-        maven {
-            url = uri("https://maven.pkg.github.com/Strumenta/kolasu-languageserver-library")
-            credentials {
-                username = (if (extra.has("starlasu.github.user")) extra["starlasu.github.user"] else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
-                password = (if (extra.has("starlasu.github.token")) extra["starlasu.github.token"] else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
-            }
         }
     }
 }
