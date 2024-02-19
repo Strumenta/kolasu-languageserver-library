@@ -23,25 +23,19 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.pluginManager.apply(ShadowPlugin::class.java)
         project.pluginManager.apply(KotlinPlatformJvmPlugin::class.java)
 
-        project.repositories.add(project.repositories.mavenLocal())
         project.repositories.add(project.repositories.mavenCentral())
-        project.repositories.maven {}.apply {
-            url = java.net.URI("https://maven.pkg.github.com/Strumenta/kolasu-languageserver-library")
-            credentials.username = (if (project.findProperty("starlasu.github.user") != null) project.findProperty("starlasu.github.user") else System.getenv("STRUMENTA_PACKAGES_USER")) as String?
-            credentials.password = (if (project.findProperty("starlasu.github.token") != null) project.findProperty("starlasu.github.token") else System.getenv("STRUMENTA_PACKAGES_TOKEN")) as String?
-        }
 
         if (project.rootProject.subprojects.any { it.name == "ast" }) {
             project.dependencies.add("implementation", project.dependencies.project(mapOf("path" to ":ast")))
         }
-        project.dependencies.add("implementation", "com.strumenta.kolasu:language-server:0.0.0")
+        project.dependencies.add("implementation", "com.strumenta.kolasu:language-server:1.0.0")
         project.dependencies.add("implementation", "com.strumenta.kolasu:kolasu-core:1.5.31")
         project.dependencies.add("implementation", "org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-core:9.8.0")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-codecs:9.8.0")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-queryparser:9.8.0")
 
-        project.dependencies.add("testImplementation", "com.strumenta.kolasu:language-server-test:0.0.0")
+        project.dependencies.add("testImplementation", "com.strumenta.kolasu:language-server-testing:1.0.0")
         project.dependencies.add("testImplementation", "org.junit.jupiter:junit-jupiter:5.+")
 
         val projectPath = project.projectDir.toString()
