@@ -1,4 +1,4 @@
-package com.strumenta.kolasu.languageserver.testing
+package testing
 
 import com.google.gson.JsonObject
 import com.strumenta.kolasu.languageserver.CodeGenerator

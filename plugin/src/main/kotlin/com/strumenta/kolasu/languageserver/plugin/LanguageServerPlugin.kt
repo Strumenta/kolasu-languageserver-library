@@ -221,8 +221,8 @@ class LanguageServerPlugin : Plugin<Project?> {
 
         Files.copy(configuration.serverJarPath, Paths.get(configuration.outputPath.toString(), "server.jar"), StandardCopyOption.REPLACE_EXISTING)
 
-        val npm = if(isWindows()) "npm.cmd" else "npm"
-        val npx = if(isWindows()) "npx.cmd" else "npx"
+        val npm = if (isWindows()) "npm.cmd" else "npm"
+        val npx = if (isWindows()) "npx.cmd" else "npx"
 
         ProcessBuilder(npm, "install", "--prefix", "build/vscode/", "vscode-languageclient").directory(project.projectDir).start().waitFor()
         ProcessBuilder(npx, "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
