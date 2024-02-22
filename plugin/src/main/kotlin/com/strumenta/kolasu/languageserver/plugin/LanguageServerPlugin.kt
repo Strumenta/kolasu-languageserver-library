@@ -202,7 +202,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             Files.writeString(
                 Paths.get(configuration.outputPath.toString(), "client.js"),
                 """
-                let {LanguageClient} = require("../node_modules/vscode-languageclient/node");
+                let {LanguageClient} = require("./node_modules/vscode-languageclient/node");
         
                 async function activate (context)
                 {
@@ -224,7 +224,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         val npm = if(isWindows()) "npm.cmd" else "npm"
         val npx = if(isWindows()) "npx.cmd" else "npx"
 
-        ProcessBuilder(npm, "install", "--prefix", "build", "vscode-languageclient").directory(project.projectDir).start().waitFor()
+        ProcessBuilder(npm, "install", "--prefix", "build/vscode/", "vscode-languageclient").directory(project.projectDir).start().waitFor()
         ProcessBuilder(npx, "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
 
         if (Files.exists(configuration.textmateGrammarPath)) {
