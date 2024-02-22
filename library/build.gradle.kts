@@ -43,8 +43,6 @@ java {
     withJavadocJar()
 }
 
-group = "com.strumenta.kolasu"
-
 val isReleaseVersion = !(project.version as String).endsWith("SNAPSHOT")
 
 publishing {
@@ -60,9 +58,9 @@ publishing {
         }
     }
     publications {
-        create<MavenPublication>("language-server") {
-            groupId = "com.strumenta.kolasu"
-            artifactId = "language-server"
+        create<MavenPublication>("language-server-library") {
+            groupId = "com.strumenta.kolasu.languageserver"
+            artifactId = "library"
             version = project.version as String
 
             artifact(tasks.getByName("jar"))
@@ -94,8 +92,8 @@ publishing {
                 }
             }
             create<MavenPublication>("language-server-testing") {
-                groupId = "com.strumenta.kolasu"
-                artifactId = "language-server-testing"
+                groupId = "com.strumenta.kolasu.languageserver"
+                artifactId = "testing"
                 version = project.version as String
 
                 artifact(tasks.getByName("testingJar"))
@@ -132,6 +130,6 @@ publishing {
 }
 
 signing {
-    sign(publishing.publications.getByName("language-server"))
+    sign(publishing.publications.getByName("language-server-library"))
     sign(publishing.publications.getByName("language-server-testing"))
 }
