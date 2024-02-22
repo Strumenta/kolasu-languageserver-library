@@ -99,6 +99,9 @@ class LanguageServerPlugin : Plugin<Project?> {
         }
     }
 
+    fun isWindows(): Boolean {
+        return System.getProperty("os.name").toLowerCase().contains("win")
+    }
     private fun createVscodeExtension(project: Project) {
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         val entryPoint = shadowJar.manifest.attributes["Main-Class"] as String
@@ -218,8 +221,11 @@ class LanguageServerPlugin : Plugin<Project?> {
 
         Files.copy(configuration.serverJarPath, Paths.get(configuration.outputPath.toString(), "server.jar"), StandardCopyOption.REPLACE_EXISTING)
 
-        ProcessBuilder("npm", "install", "--prefix", "build", "vscode-languageclient").directory(project.projectDir).start().waitFor()
-        ProcessBuilder("npx", "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
+        val npm = if(isWindows()) "npm.cmd" else "npm"
+        val npx = if(isWindows()) "npx.cmd" else "npx"
+
+        ProcessBuilder(npm, "install", "--prefix", "build", "vscode-languageclient").directory(project.projectDir).start().waitFor()
+        ProcessBuilder(npx, "esbuild", "build/vscode/client.js", "--bundle", "--external:vscode", "--format=cjs", "--platform=node", "--outfile=build/vscode/client.js", "--allow-overwrite").directory(project.projectDir).start().waitFor()
 
         if (Files.exists(configuration.textmateGrammarPath)) {
             Files.copy(configuration.textmateGrammarPath, Paths.get(configuration.outputPath.toString(), "grammar.tmLanguage"), StandardCopyOption.REPLACE_EXISTING)
@@ -241,6 +247,6 @@ class LanguageServerPlugin : Plugin<Project?> {
         ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar", "-o", Paths.get(configuration.outputPath.toString(), "lucene-core-9.8.0.jar").toString()).start().waitFor()
         ProcessBuilder("curl", "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar", "-o", Paths.get(configuration.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()).start().waitFor()
 
-        ProcessBuilder("npx", "vsce@2.15", "package").directory(configuration.outputPath.toFile()).start().waitFor()
+        ProcessBuilder(npx, "vsce@2.15", "package").directory(configuration.outputPath.toFile()).start().waitFor()
     }
 }
