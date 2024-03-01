@@ -39,8 +39,8 @@ publishing {
     }
     publications {
         create<MavenPublication>("language-server-testing") {
-            groupId = "com.strumenta.kolasu.languageserver"
-            artifactId = "testing"
+            groupId = "com.strumenta.kolasu"
+            artifactId = "language-server-testing"
             version = project.version as String
 
             artifact(tasks.getByName("jar"))

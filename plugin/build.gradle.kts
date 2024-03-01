@@ -21,8 +21,8 @@ gradlePlugin {
     website = "https://strumenta.com"
     vcsUrl = "https://github.com/Strumenta/kolasu-languageserver-library"
     plugins {
-        create("com.strumenta.kolasu.languageserver.plugin") {
-            id = "com.strumenta.kolasu.languageserver.plugin"
+        create("com.strumenta.kolasu.language-server-plugin") {
+            id = "com.strumenta.kolasu.language-server-plugin"
             version = project.version
             displayName = "Kolasu language server plugin"
             description = "Create language servers from Kolasu parsers"
