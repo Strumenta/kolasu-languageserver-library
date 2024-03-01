@@ -28,14 +28,14 @@ class LanguageServerPlugin : Plugin<Project?> {
         if (project.rootProject.subprojects.any { it.name == "ast" }) {
             project.dependencies.add("implementation", project.dependencies.project(mapOf("path" to ":ast")))
         }
-        project.dependencies.add("implementation", "com.strumenta.kolasu:language-server:1.0.0")
+        project.dependencies.add("implementation", "com.strumenta.kolasu:language-server:${project.version}")
         project.dependencies.add("implementation", "com.strumenta.kolasu:kolasu-core:1.5.31")
         project.dependencies.add("implementation", "org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-core:9.8.0")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-codecs:9.8.0")
         project.dependencies.add("implementation", "org.apache.lucene:lucene-queryparser:9.8.0")
 
-        project.dependencies.add("testImplementation", "com.strumenta.kolasu:language-server-testing:1.0.0")
+        project.dependencies.add("testImplementation", "com.strumenta.kolasu:language-server-testing:${project.version}")
         project.dependencies.add("testImplementation", "org.junit.jupiter:junit-jupiter:5.+")
 
         val projectPath = project.projectDir.toString()
