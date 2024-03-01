@@ -12,10 +12,10 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-reflect:1.5.21")
+    implementation(project(":kolasu-languageserver-library"))
     implementation("com.strumenta.kolasu:kolasu-core:1.5.31")
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
-    implementation("org.apache.lucene:lucene-core:9.8.0")
+    implementation("org.junit.jupiter:junit-jupiter-api:5.7.1")
 }
 
 java {
@@ -38,9 +38,9 @@ publishing {
         }
     }
     publications {
-        create<MavenPublication>("language-server-library") {
+        create<MavenPublication>("language-server-testing") {
             groupId = "com.strumenta.kolasu"
-            artifactId = "language-server"
+            artifactId = "language-server-testing"
             version = project.version as String
 
             artifact(tasks.getByName("jar"))
@@ -48,8 +48,8 @@ publishing {
             artifact(tasks.getByName("javadocJar"))
 
             pom {
-                name = "Kolasu language server"
-                description = "Create a language server for parsers created with Kolasu"
+                name = "Kolasu language server testing"
+                description = "Test Kolasu language servers"
                 inceptionYear = "2023"
                 url = "https://github.com/Strumenta/kolasu-languageserver-library"
                 licenses {
@@ -76,5 +76,5 @@ publishing {
 }
 
 signing {
-    sign(publishing.publications.getByName("language-server-library"))
+    sign(publishing.publications.getByName("language-server-testing"))
 }

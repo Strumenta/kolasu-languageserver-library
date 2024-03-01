@@ -1,4 +1,4 @@
-package com.strumenta.kolasu.languageserver.testing
+package testing
 
 import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams

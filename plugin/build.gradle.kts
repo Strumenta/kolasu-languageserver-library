@@ -3,12 +3,8 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
     id("maven-publish")
     id("java-gradle-plugin")
-    id("net.researchgate.release") version "3.0.2"
     id("com.gradle.plugin-publish") version "1.2.1"
 }
-
-group = "com.strumenta.kolasu"
-version = "1.0.0"
 
 repositories {
     mavenCentral()
@@ -25,7 +21,6 @@ gradlePlugin {
     vcsUrl = "https://github.com/Strumenta/kolasu-languageserver-library"
     plugins {
         create("com.strumenta.kolasu.language-server-plugin") {
-            group = "com.strumenta.kolasu"
             id = "com.strumenta.kolasu.language-server-plugin"
             version = project.version
             displayName = "Kolasu language server plugin"
@@ -33,13 +28,5 @@ gradlePlugin {
             tags = listOf("kolasu", "language-server", "parser")
             implementationClass = "com.strumenta.kolasu.languageserver.plugin.LanguageServerPlugin"
         }
-    }
-}
-
-release {
-    buildTasks.set(listOf(":publish"))
-    git {
-        requireBranch.set("")
-        pushToRemote.set("origin")
     }
 }
