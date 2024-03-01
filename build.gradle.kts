@@ -6,11 +6,11 @@ allprojects {
     group = "com.strumenta.kolasu.languageserver"
 }
 
-//
-//release {
-//    buildTasks.set(listOf(":publish"))
-//    git {
-//        requireBranch.set("")
-//        pushToRemote.set("origin")
-//    }
-//}
+
+release {
+    buildTasks.set(listOf(":publish", ":publishPlugins"))
+    git {
+        requireBranch.set("")
+        pushToRemote.set("origin")
+    }
+}
