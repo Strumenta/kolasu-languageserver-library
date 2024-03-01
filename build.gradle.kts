@@ -8,7 +8,7 @@ allprojects {
 
 
 release {
-    buildTasks.set(listOf(":kolasu-languageserver-library:publish", ":kolasu-languageserver-testing:publish", ":kolasu-languageserver-plugin::publishPlugins"))
+    buildTasks.set(listOf(":kolasu-languageserver-library:publish", ":kolasu-languageserver-testing:publish", ":kolasu-languageserver-plugin:publishPlugins"))
     git {
         requireBranch.set("")
         pushToRemote.set("origin")
