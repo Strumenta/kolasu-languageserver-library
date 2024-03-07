@@ -90,10 +90,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import kotlin.reflect.full.declaredMemberProperties
-import kotlin.reflect.full.isSubtypeOf
-import kotlin.reflect.jvm.javaField
-import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
 open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, protected open val language: String = "", protected open val extensions: List<String> = listOf(), protected open val symbolResolver: SymbolResolver? = null, protected open val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
@@ -250,16 +246,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
                 .mapNotNull { uuid[it] }
                 .map { StringField("reference", it, Field.Store.YES) }
                 .forEach(document::add)
-
-            val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
-            referenceField?.javaField?.let { field ->
-                field.isAccessible = true
-                val value = field.get(node) as ReferenceByName<*>
-
-                if (value.referred is Node && uuid[value.referred as Node] != null) {
-                    document.add(StringField("reference", uuid[value.referred as Node], Field.Store.YES))
-                }
-            }
 
             indexWriter.addDocument(document)
         }
