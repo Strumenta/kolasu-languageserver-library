@@ -95,7 +95,14 @@ import kotlin.reflect.jvm.javaField
 import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
-open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, protected open val language: String = "", protected open val extensions: List<String> = listOf(), protected open val symbolResolver: SymbolResolver? = null, protected open val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
+open class KolasuServer<T : Node>(
+    protected open val parser: ASTParser<T>?,
+    protected open val language: String = "",
+    protected open val extensions: List<String> = listOf(),
+    protected open val enableDefinitionCapability: Boolean = false,
+    protected open val enableReferencesCapability: Boolean = false,
+    protected open val generator: CodeGenerator<T>? = null
+) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
 
     protected open lateinit var client: LanguageClient
     protected open var configuration: JsonObject = JsonObject()
@@ -134,11 +141,8 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
 
         capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
         capabilities.setDocumentSymbolProvider(true)
-
-        if (symbolResolver != null) {
-            capabilities.setDefinitionProvider(true)
-            capabilities.setReferencesProvider(true)
-        }
+        capabilities.setDefinitionProvider(this.enableDefinitionCapability)
+        capabilities.setReferencesProvider(this.enableReferencesCapability)
 
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
@@ -211,7 +215,6 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
         if (!::indexWriter.isInitialized) return
 
         val parsingResult = parser?.parse(text) ?: return
-        symbolResolver?.resolveSymbols(parsingResult.root, uri)
         files[uri] = parsingResult
 
         val tree = parsingResult.root ?: return

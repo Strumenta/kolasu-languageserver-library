@@ -3,7 +3,6 @@ package testing
 import com.google.gson.JsonObject
 import com.strumenta.kolasu.languageserver.CodeGenerator
 import com.strumenta.kolasu.languageserver.KolasuServer
-import com.strumenta.kolasu.languageserver.SymbolResolver
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.parsing.ASTParser
 import org.eclipse.lsp4j.DefinitionParams
@@ -33,7 +32,8 @@ import kotlin.system.measureNanoTime
 
 open class TestKolasuServer<T : Node>(
     protected open var parser: ASTParser<T>? = null,
-    protected open var symbolResolver: SymbolResolver? = null,
+    protected open var enableDefinitionCapability: Boolean = false,
+    protected open var enableReferencesCapability: Boolean = false,
     protected open var codeGenerator: CodeGenerator<T>? = null,
     protected open var language: String = "languageserver",
     protected open var fileExtensions: List<String> = listOf(),
@@ -48,7 +48,7 @@ open class TestKolasuServer<T : Node>(
     }
 
     protected open fun initializeServer() {
-        server = KolasuServer(parser, language, fileExtensions, symbolResolver, codeGenerator)
+        server = KolasuServer(parser, language, fileExtensions, enableDefinitionCapability, enableReferencesCapability, codeGenerator)
         expectDiagnostics(0)
 
         val workspace = workspacePath.toUri().toString()
