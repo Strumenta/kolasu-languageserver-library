@@ -6,6 +6,7 @@ import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
 import com.strumenta.kolasu.model.ReferenceByName
 import com.strumenta.kolasu.model.children
+import com.strumenta.kolasu.model.kReferenceByNameProperties
 import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
@@ -240,15 +241,23 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
 
             if (node is PossiblyNamed && node.name != null) {
                 document.add(StringField("name", node.name, Field.Store.YES))
-            } else {
-                val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
-                referenceField?.javaField?.let { field ->
-                    field.isAccessible = true
-                    val value = field.get(node) as ReferenceByName<*>
+            }
 
-                    if (value.referred is Node && uuid[value.referred as Node] != null) {
-                        document.add(StringField("reference", uuid[value.referred as Node], Field.Store.YES))
-                    }
+            // handle reference by name properties
+            node.kReferenceByNameProperties()
+                .mapNotNull { it.get(node) as? ReferenceByName<*> }
+                .mapNotNull { it.referred as? Node }
+                .mapNotNull { uuid[it] }
+                .map { StringField("reference", it, Field.Store.YES) }
+                .forEach(document::add)
+
+            val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
+            referenceField?.javaField?.let { field ->
+                field.isAccessible = true
+                val value = field.get(node) as ReferenceByName<*>
+
+                if (value.referred is Node && uuid[value.referred as Node] != null) {
+                    document.add(StringField("reference", uuid[value.referred as Node], Field.Store.YES))
                 }
             }
 
