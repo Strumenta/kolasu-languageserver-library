@@ -6,6 +6,7 @@ import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
 import com.strumenta.kolasu.model.ReferenceByName
 import com.strumenta.kolasu.model.children
+import com.strumenta.kolasu.model.kReferenceByNameProperties
 import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
@@ -89,10 +90,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import kotlin.reflect.full.declaredMemberProperties
-import kotlin.reflect.full.isSubtypeOf
-import kotlin.reflect.jvm.javaField
-import kotlin.reflect.typeOf
 import kotlin.system.exitProcess
 
 open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, protected open val language: String = "", protected open val extensions: List<String> = listOf(), protected open val symbolResolver: SymbolResolver? = null, protected open val generator: CodeGenerator<T>? = null) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
@@ -240,17 +237,15 @@ open class KolasuServer<T : Node>(protected open val parser: ASTParser<T>?, prot
 
             if (node is PossiblyNamed && node.name != null) {
                 document.add(StringField("name", node.name, Field.Store.YES))
-            } else {
-                val referenceField = node::class.declaredMemberProperties.find { it.returnType.isSubtypeOf(typeOf<ReferenceByName<*>>()) }
-                referenceField?.javaField?.let { field ->
-                    field.isAccessible = true
-                    val value = field.get(node) as ReferenceByName<*>
-
-                    if (value.referred is Node && uuid[value.referred as Node] != null) {
-                        document.add(StringField("reference", uuid[value.referred as Node], Field.Store.YES))
-                    }
-                }
             }
+
+            // handle reference by name properties
+            node.kReferenceByNameProperties()
+                .mapNotNull { it.get(node) as? ReferenceByName<*> }
+                .mapNotNull { it.referred as? Node }
+                .mapNotNull { uuid[it] }
+                .map { StringField("reference", it, Field.Store.YES) }
+                .forEach(document::add)
 
             indexWriter.addDocument(document)
         }
