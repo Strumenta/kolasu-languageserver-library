@@ -98,7 +98,7 @@ open class KolasuServer<T : Node>(
     protected open val extensions: List<String> = listOf(),
     protected open val enableDefinitionCapability: Boolean = false,
     protected open val enableReferencesCapability: Boolean = false,
-    protected open val generator: CodeGenerator<T>? = null,
+    protected open val generator: CodeGenerator<T>? = null
 ) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
     protected open lateinit var client: LanguageClient
     protected open var configuration: JsonObject = JsonObject()
@@ -116,7 +116,7 @@ open class KolasuServer<T : Node>(
 
     open fun startCommunication(
         inputStream: InputStream = System.`in`,
-        outputStream: OutputStream = System.out,
+        outputStream: OutputStream = System.out
     ) {
         val launcher = LSPLauncher.createServerLauncher(this, inputStream, outputStream)
         connect(launcher.remoteProxy)
@@ -142,14 +142,14 @@ open class KolasuServer<T : Node>(
                 WorkspaceFoldersOptions().apply {
                     supported = true
                     changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration")
-                },
+                }
             )
 
         capabilities.setTextDocumentSync(
             TextDocumentSyncOptions().apply {
                 openClose = true
                 change = TextDocumentSyncKind.Full
-            },
+            }
         )
         capabilities.setDocumentSymbolProvider(true)
         capabilities.setDefinitionProvider(this.enableDefinitionCapability)
@@ -169,10 +169,10 @@ open class KolasuServer<T : Node>(
                     Registration(
                         "workspace/didChangeWatchedFiles",
                         "workspace/didChangeWatchedFiles",
-                        DidChangeWatchedFilesRegistrationOptions(watchers),
-                    ),
-                ),
-            ),
+                        DidChangeWatchedFilesRegistrationOptions(watchers)
+                    )
+                )
+            )
         )
 
         client.registerCapability(
@@ -183,10 +183,10 @@ open class KolasuServer<T : Node>(
                         "workspace/didChangeConfiguration",
                         object {
                             val section = language
-                        },
-                    ),
-                ),
-            ),
+                        }
+                    )
+                )
+            )
         )
     }
 
@@ -204,7 +204,7 @@ open class KolasuServer<T : Node>(
 
         client.createProgress(WorkDoneProgressCreateParams(Either.forLeft("indexing")))
         client.notifyProgress(
-            ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing" })),
+            ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing" }))
         )
         for (folder in folders) {
             val projectFiles = File(URI(folder)).walk().filter { extensions.contains(it.extension) }.toList()
@@ -220,9 +220,9 @@ open class KolasuServer<T : Node>(
                         Either.forLeft(
                             WorkDoneProgressReport().apply {
                                 this.percentage = percentage
-                            },
-                        ),
-                    ),
+                            }
+                        )
+                    )
                 )
             }
         }
@@ -257,7 +257,7 @@ open class KolasuServer<T : Node>(
 
     open fun parse(
         uri: String,
-        text: String,
+        text: String
     ) {
         if (!::indexWriter.isInitialized) return
 
@@ -324,11 +324,11 @@ open class KolasuServer<T : Node>(
                         Diagnostic(
                             toLSPRange(node.position!!),
                             "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(
-                                node.position!!,
-                            )?.simpleNodeType}",
+                                node.position!!
+                            )?.simpleNodeType}"
                         ).apply {
                             severity = DiagnosticSeverity.Warning
-                        },
+                        }
                     )
                 }
 
@@ -336,10 +336,10 @@ open class KolasuServer<T : Node>(
                     diagnostics.add(
                         Diagnostic(
                             toLSPRange(node.position!!),
-                            "Leaf position: ${node.position}, Source text: ${node.sourceText}",
+                            "Leaf position: ${node.position}, Source text: ${node.sourceText}"
                         ).apply {
                             severity = DiagnosticSeverity.Information
-                        },
+                        }
                     )
                 }
             }
@@ -369,7 +369,7 @@ open class KolasuServer<T : Node>(
 
     protected open fun appendNamedChildren(
         node: Node,
-        parent: DocumentSymbol,
+        parent: DocumentSymbol
     ) {
         var nextParent = parent
         if (node is PossiblyNamed && node.name != null) {
@@ -392,7 +392,7 @@ open class KolasuServer<T : Node>(
     }
 
     override fun definition(
-        params: DefinitionParams?,
+        params: DefinitionParams?
     ): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
         val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
 
@@ -400,7 +400,7 @@ open class KolasuServer<T : Node>(
         val result =
             indexSearcher.search(
                 TermQuery(Term("uuid", symbolID)),
-                1,
+                1
             ).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
         val definition = indexSearcher.storedFields().document(result.doc)
 
@@ -426,7 +426,7 @@ open class KolasuServer<T : Node>(
             val result =
                 indexSearcher.search(
                     TermQuery(Term("uuid", symbolID)),
-                    1,
+                    1
                 ).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
             val definition = indexSearcher.storedFields().document(result.doc)
 
@@ -469,7 +469,7 @@ open class KolasuServer<T : Node>(
         val range =
             Range(
                 Position(document.get("startLine").toInt() - 1, document.get("startColumn").toInt()),
-                Position(document.get("endLine").toInt() - 1, document.get("endColumn").toInt()),
+                Position(document.get("endLine").toInt() - 1, document.get("endColumn").toInt())
             )
         return Location(uri, range)
     }
@@ -532,14 +532,14 @@ open class KolasuServer<T : Node>(
 
     protected open fun log(
         text: String,
-        verboseExplanation: String? = null,
+        verboseExplanation: String? = null
     ) {
         client.logTrace(LogTraceParams(text, verboseExplanation))
     }
 
     protected open fun showNotification(
         text: String,
-        messageType: MessageType = MessageType.Info,
+        messageType: MessageType = MessageType.Info
     ) {
         client.showMessage(MessageParams(messageType, text))
     }
@@ -547,7 +547,7 @@ open class KolasuServer<T : Node>(
     protected open fun askClient(
         messageText: String,
         options: List<String> = listOf("Yes", "No"),
-        messageType: MessageType = MessageType.Info,
+        messageType: MessageType = MessageType.Info
     ): CompletableFuture<String> {
         val future = CompletableFuture<String>()
 
@@ -572,13 +572,13 @@ open class KolasuServer<T : Node>(
 interface CodeGenerator<T : Node> {
     fun generate(
         tree: T,
-        uri: String,
+        uri: String
     )
 }
 
 interface SymbolResolver {
     fun resolveSymbols(
         tree: Node?,
-        uri: String,
+        uri: String
     )
 }

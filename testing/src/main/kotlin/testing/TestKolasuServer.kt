@@ -37,7 +37,7 @@ open class TestKolasuServer<T : Node>(
     protected open var codeGenerator: CodeGenerator<T>? = null,
     protected open var language: String = "languageserver",
     protected open var fileExtensions: List<String> = listOf(),
-    protected open var workspacePath: Path = Paths.get("src", "test", "resources"),
+    protected open var workspacePath: Path = Paths.get("src", "test", "resources")
 ) {
     protected open lateinit var server: KolasuServer<T>
 
@@ -63,13 +63,13 @@ open class TestKolasuServer<T : Node>(
         server.connect(
             DiagnosticListenerClient {
                 assertEquals(amount, it.diagnostics.size)
-            },
+            }
         )
     }
 
     protected open fun open(
         uri: String,
-        text: String,
+        text: String
     ) {
         val textDocument = TextDocumentItem(uri, "", 0, text)
         val parameters = DidOpenTextDocumentParams(textDocument)
@@ -79,7 +79,7 @@ open class TestKolasuServer<T : Node>(
 
     protected open fun change(
         uri: String,
-        text: String,
+        text: String
     ) {
         val document = VersionedTextDocumentIdentifier(uri, null)
         val changes = listOf(TextDocumentContentChangeEvent(text))
@@ -97,7 +97,7 @@ open class TestKolasuServer<T : Node>(
 
     protected open fun definition(
         uri: String,
-        position: Position,
+        position: Position
     ): Location? {
         val document = TextDocumentIdentifier(uri)
         val parameters = DefinitionParams(document, position)
@@ -108,7 +108,7 @@ open class TestKolasuServer<T : Node>(
     protected open fun references(
         uri: String,
         position: Position,
-        includeDeclaration: Boolean = true,
+        includeDeclaration: Boolean = true
     ): MutableList<out Location>? {
         val document = TextDocumentIdentifier(uri)
         val parameters = ReferenceParams(document, position, ReferenceContext(includeDeclaration))
@@ -118,7 +118,7 @@ open class TestKolasuServer<T : Node>(
 
     protected fun requestAtEachPositionInResourceFiles(
         name: String,
-        request: (String, Position) -> Unit,
+        request: (String, Position) -> Unit
     ): List<Long> {
         val timings = mutableListOf<Long>()
 

@@ -61,7 +61,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                 "strumenta",
                 language,
                 "languageserver",
-                "Main.kt",
+                "Main.kt"
             )
         configuration.textmateGrammarPath = Paths.get(projectPath, "src", "main", "resources", "grammar.tmLanguage")
         configuration.logoPath = Paths.get(projectPath, "src", "main", "resources", "logo.png")
@@ -99,7 +99,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                         } catch (exception: Exception) {
                             System.err.println(exception.message)
                         }
-                    },
+                    }
                 )
             dependsOn(project.tasks.getByName("createVscodeExtension"))
         }
@@ -110,7 +110,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             configuration.editor,
             "--extensionDevelopmentPath",
             "${project.projectDir}${File.separator}build${File.separator}vscode",
-            configuration.examplesPath.toString(),
+            configuration.examplesPath.toString()
         ).directory(project.projectDir).start().waitFor()
     }
 
@@ -127,7 +127,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                         } catch (exception: Exception) {
                             System.err.println(exception.message)
                         }
-                    },
+                    }
                 )
             dependsOn(project.tasks.getByName("shadowJar"))
             inputs.files(
@@ -137,7 +137,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                 configuration.fileIconPath,
                 configuration.languageClientPath,
                 configuration.packageDefinitionPath,
-                configuration.licensePath,
+                configuration.licensePath
             ).optional()
             outputs.dirs(configuration.outputPath)
         }
@@ -165,11 +165,11 @@ class LanguageServerPlugin : Plugin<Project?> {
                         val parser = ${configuration.language.capitalized()}KolasuParser()
                         
                         val server = KolasuServer(parser, "${configuration.language}", listOf(${configuration.fileExtensions.joinToString(
-                        ",",
+                        ","
                     ) { "\"$it\"" }}))
                         server.startCommunication()
                     }
-                    """.trimIndent(),
+                    """.trimIndent()
                 )
             }
         }
@@ -180,7 +180,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             Files.copy(
                 configuration.packageDefinitionPath,
                 Paths.get(configuration.outputPath.toString(), "package.json"),
-                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.REPLACE_EXISTING
             )
         } else {
             var grammars = ""
@@ -218,7 +218,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                         "languages":
                         [
                             {"id": "${configuration.language}", "extensions": ["${configuration.fileExtensions.joinToString(
-                    "\", \"",
+                    "\", \""
                 ){ ".$it" }}"]$fileIcon}
                         ],
                         "configuration": {
@@ -246,7 +246,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                     "activationEvents": ["onLanguage:${configuration.language}"],
                     "main": "client.js"
                 }
-                """.trimIndent(),
+                """.trimIndent()
             )
         }
 
@@ -254,7 +254,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             Files.copy(
                 configuration.languageClientPath,
                 Paths.get(configuration.outputPath.toString(), "client.js"),
-                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.REPLACE_EXISTING
             )
         } else {
             Files.writeString(
@@ -273,14 +273,14 @@ class LanguageServerPlugin : Plugin<Project?> {
                 }
                 
                 module.exports = {activate};
-                """.trimIndent(),
+                """.trimIndent()
             )
         }
 
         Files.copy(
             configuration.serverJarPath,
             Paths.get(configuration.outputPath.toString(), "server.jar"),
-            StandardCopyOption.REPLACE_EXISTING,
+            StandardCopyOption.REPLACE_EXISTING
         )
 
         val npm = if (isWindows()) "npm.cmd" else "npm"
@@ -296,14 +296,14 @@ class LanguageServerPlugin : Plugin<Project?> {
             "--format=cjs",
             "--platform=node",
             "--outfile=build/vscode/client.js",
-            "--allow-overwrite",
+            "--allow-overwrite"
         ).directory(project.projectDir).start().waitFor()
 
         if (Files.exists(configuration.textmateGrammarPath)) {
             Files.copy(
                 configuration.textmateGrammarPath,
                 Paths.get(configuration.outputPath.toString(), "grammar.tmLanguage"),
-                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.REPLACE_EXISTING
             )
         }
 
@@ -311,7 +311,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             Files.copy(
                 configuration.logoPath,
                 Paths.get(configuration.outputPath.toString(), "logo.png"),
-                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.REPLACE_EXISTING
             )
         }
 
@@ -319,7 +319,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             Files.copy(
                 configuration.fileIconPath,
                 Paths.get(configuration.outputPath.toString(), "fileIcon.png"),
-                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.REPLACE_EXISTING
             )
         }
 
@@ -332,13 +332,13 @@ class LanguageServerPlugin : Plugin<Project?> {
             "curl",
             "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar",
             "-o",
-            Paths.get(configuration.outputPath.toString(), "lucene-core-9.8.0.jar").toString(),
+            Paths.get(configuration.outputPath.toString(), "lucene-core-9.8.0.jar").toString()
         ).start().waitFor()
         ProcessBuilder(
             "curl",
             "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar",
             "-o",
-            Paths.get(configuration.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString(),
+            Paths.get(configuration.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()
         ).start().waitFor()
 
         ProcessBuilder(npx, "vsce@2.15", "package").directory(configuration.outputPath.toFile()).start().waitFor()

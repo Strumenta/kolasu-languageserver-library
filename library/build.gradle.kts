@@ -1,26 +1,20 @@
 import java.net.URI
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.8.22"
-    id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
-    id("maven-publish")
-    id("signing")
+    alias(libs.plugins.kotlin.jvm)
+    `maven-publish`
+    signing
 }
 
 repositories {
     mavenCentral()
 }
 
-val kotlinVersion: String by project
-val kolasuVersion: String by project
-val lsp4jVersion: String by project
-val luceneVersion: String by project
-
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion")
-    implementation("com.strumenta.kolasu:kolasu-core:$kolasuVersion")
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:$lsp4jVersion")
-    implementation("org.apache.lucene:lucene-core:$luceneVersion")
+    implementation(libs.kotlin.reflect)
+    implementation(libs.kolasu.core)
+    implementation(libs.lsp4j)
+    implementation(libs.lucene)
 }
 
 java {
@@ -82,8 +76,4 @@ publishing {
 
 signing {
     sign(publishing.publications.getByName("language-server-library"))
-}
-
-ktlint {
-    version = "1.2.1"
 }
