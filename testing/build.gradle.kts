@@ -1,10 +1,10 @@
 import java.net.URI
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.8.22"
-    id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
-    id("maven-publish")
-    id("signing")
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.ktlint)
+    `maven-publish`
+    signing
 }
 
 repositories {
@@ -13,9 +13,9 @@ repositories {
 
 dependencies {
     implementation(project(":kolasu-languageserver-library"))
-    implementation("com.strumenta.kolasu:kolasu-core:1.5.31")
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
-    implementation("org.junit.jupiter:junit-jupiter-api:5.7.1")
+    implementation(libs.kolasu.core)
+    implementation(libs.lsp4j)
+    implementation(libs.junit5)
 }
 
 java {

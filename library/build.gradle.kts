@@ -1,10 +1,9 @@
 import java.net.URI
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.8.22"
-    id("org.jlleitschuh.gradle.ktlint") version "11.6.0"
-    id("maven-publish")
-    id("signing")
+    alias(libs.plugins.kotlin.jvm)
+    `maven-publish`
+    signing
 }
 
 repositories {
@@ -12,10 +11,10 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-reflect:1.5.21")
-    implementation("com.strumenta.kolasu:kolasu-core:1.5.45")
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
-    implementation("org.apache.lucene:lucene-core:9.8.0")
+    implementation(libs.kotlin.reflect)
+    implementation(libs.kolasu.core)
+    implementation(libs.lsp4j)
+    implementation(libs.lucene)
 }
 
 java {

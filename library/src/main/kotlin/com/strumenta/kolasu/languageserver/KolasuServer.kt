@@ -100,7 +100,6 @@ open class KolasuServer<T : Node>(
     protected open val enableReferencesCapability: Boolean = false,
     protected open val generator: CodeGenerator<T>? = null
 ) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
-
     protected open lateinit var client: LanguageClient
     protected open var configuration: JsonObject = JsonObject()
     protected open var traceLevel: String = "off"
@@ -112,9 +111,13 @@ open class KolasuServer<T : Node>(
     protected open val uuid = mutableMapOf<Node, String>()
 
     override fun getTextDocumentService() = this
+
     override fun getWorkspaceService() = this
 
-    open fun startCommunication(inputStream: InputStream = System.`in`, outputStream: OutputStream = System.out) {
+    open fun startCommunication(
+        inputStream: InputStream = System.`in`,
+        outputStream: OutputStream = System.out
+    ) {
         val launcher = LSPLauncher.createServerLauncher(this, inputStream, outputStream)
         connect(launcher.remoteProxy)
         launcher.startListening()
@@ -134,9 +137,20 @@ open class KolasuServer<T : Node>(
 
         val capabilities = ServerCapabilities()
 
-        capabilities.workspace = WorkspaceServerCapabilities(WorkspaceFoldersOptions().apply { supported = true; changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration"); })
+        capabilities.workspace =
+            WorkspaceServerCapabilities(
+                WorkspaceFoldersOptions().apply {
+                    supported = true
+                    changeNotifications = Either.forLeft("didChangeWorkspaceFoldersRegistration")
+                }
+            )
 
-        capabilities.setTextDocumentSync(TextDocumentSyncOptions().apply { openClose = true; change = TextDocumentSyncKind.Full })
+        capabilities.setTextDocumentSync(
+            TextDocumentSyncOptions().apply {
+                openClose = true
+                change = TextDocumentSyncKind.Full
+            }
+        )
         capabilities.setDocumentSymbolProvider(true)
         capabilities.setDefinitionProvider(this.enableDefinitionCapability)
         capabilities.setReferencesProvider(this.enableReferencesCapability)
@@ -149,9 +163,31 @@ open class KolasuServer<T : Node>(
         for (folder in folders) {
             watchers.add(FileSystemWatcher(Either.forLeft(URI(folder).path + """/**/*{${extensions.joinToString(","){".$it"}}}""")))
         }
-        client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions(watchers)))))
+        client.registerCapability(
+            RegistrationParams(
+                listOf(
+                    Registration(
+                        "workspace/didChangeWatchedFiles",
+                        "workspace/didChangeWatchedFiles",
+                        DidChangeWatchedFilesRegistrationOptions(watchers)
+                    )
+                )
+            )
+        )
 
-        client.registerCapability(RegistrationParams(listOf(Registration("workspace/didChangeConfiguration", "workspace/didChangeConfiguration", object { val section = language }))))
+        client.registerCapability(
+            RegistrationParams(
+                listOf(
+                    Registration(
+                        "workspace/didChangeConfiguration",
+                        "workspace/didChangeConfiguration",
+                        object {
+                            val section = language
+                        }
+                    )
+                )
+            )
+        )
     }
 
     override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
@@ -167,7 +203,9 @@ open class KolasuServer<T : Node>(
         commitIndex()
 
         client.createProgress(WorkDoneProgressCreateParams(Either.forLeft("indexing")))
-        client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing" })))
+        client.notifyProgress(
+            ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing" }))
+        )
         for (folder in folders) {
             val projectFiles = File(URI(folder)).walk().filter { extensions.contains(it.extension) }.toList()
             val totalBytes = projectFiles.sumOf { it.length() }
@@ -176,7 +214,16 @@ open class KolasuServer<T : Node>(
                 parse(file.toURI().toString(), Files.readString(file.toPath()))
                 parsedBytes += file.length()
                 val percentage = (parsedBytes * 100 / totalBytes).toInt()
-                client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressReport().apply { this.percentage = percentage })))
+                client.notifyProgress(
+                    ProgressParams(
+                        Either.forLeft("indexing"),
+                        Either.forLeft(
+                            WorkDoneProgressReport().apply {
+                                this.percentage = percentage
+                            }
+                        )
+                    )
+                )
             }
         }
         client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressEnd())))
@@ -208,7 +255,10 @@ open class KolasuServer<T : Node>(
         parse(uri, text)
     }
 
-    open fun parse(uri: String, text: String) {
+    open fun parse(
+        uri: String,
+        text: String
+    ) {
         if (!::indexWriter.isInitialized) return
 
         val parsingResult = parser?.parse(text) ?: return
@@ -270,11 +320,27 @@ open class KolasuServer<T : Node>(
                 if (node.children.isNotEmpty() || node.position == null) continue
 
                 if (showASTWarnings && tree.findByPosition(node.position!!) != node) {
-                    diagnostics.add(Diagnostic(toLSPRange(node.position!!), "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(node.position!!)?.simpleNodeType}").apply { severity = DiagnosticSeverity.Warning })
+                    diagnostics.add(
+                        Diagnostic(
+                            toLSPRange(node.position!!),
+                            "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(
+                                node.position!!
+                            )?.simpleNodeType}"
+                        ).apply {
+                            severity = DiagnosticSeverity.Warning
+                        }
+                    )
                 }
 
                 if (showLeafPositions) {
-                    diagnostics.add(Diagnostic(toLSPRange(node.position!!), "Leaf position: ${node.position}, Source text: ${node.sourceText}").apply { severity = DiagnosticSeverity.Information })
+                    diagnostics.add(
+                        Diagnostic(
+                            toLSPRange(node.position!!),
+                            "Leaf position: ${node.position}, Source text: ${node.sourceText}"
+                        ).apply {
+                            severity = DiagnosticSeverity.Information
+                        }
+                    )
                 }
             }
         }
@@ -301,7 +367,10 @@ open class KolasuServer<T : Node>(
         return CompletableFuture.completedFuture(mutableListOf(Either.forRight(namedTree)))
     }
 
-    protected open fun appendNamedChildren(node: Node, parent: DocumentSymbol) {
+    protected open fun appendNamedChildren(
+        node: Node,
+        parent: DocumentSymbol
+    ) {
         var nextParent = parent
         if (node is PossiblyNamed && node.name != null) {
             val range = toLSPRange(node.position!!)
@@ -322,11 +391,17 @@ open class KolasuServer<T : Node>(
         return SymbolKind.Variable
     }
 
-    override fun definition(params: DefinitionParams?): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
+    override fun definition(
+        params: DefinitionParams?
+    ): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
         val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
 
         val symbolID = document.fields.find { it.name() == "reference" }?.stringValue() ?: return CompletableFuture.completedFuture(null)
-        val result = indexSearcher.search(TermQuery(Term("uuid", symbolID)), 1).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
+        val result =
+            indexSearcher.search(
+                TermQuery(Term("uuid", symbolID)),
+                1
+            ).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
         val definition = indexSearcher.storedFields().document(result.doc)
 
         if (definition.fields.none { it.name() == "startLine" }) return CompletableFuture.completedFuture(null)
@@ -348,7 +423,11 @@ open class KolasuServer<T : Node>(
         }
 
         if (params?.context?.isIncludeDeclaration == true) {
-            val result = indexSearcher.search(TermQuery(Term("uuid", symbolID)), 1).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
+            val result =
+                indexSearcher.search(
+                    TermQuery(Term("uuid", symbolID)),
+                    1
+                ).scoreDocs.firstOrNull() ?: return CompletableFuture.completedFuture(null)
             val definition = indexSearcher.storedFields().document(result.doc)
 
             list.add(toLSPLocation(definition))
@@ -362,13 +441,14 @@ open class KolasuServer<T : Node>(
         val uri = params?.textDocument?.uri ?: return null
         val position = params.position
 
-        val query = BooleanQuery.Builder()
-            .add(TermQuery(Term("uri", uri)), BooleanClause.Occur.MUST)
-            .add(IntPoint.newExactQuery("startLine", position.line + 1), BooleanClause.Occur.MUST)
-            .add(IntPoint.newExactQuery("endLine", position.line + 1), BooleanClause.Occur.MUST)
-            .add(IntPoint.newRangeQuery("startColumn", Int.MIN_VALUE, position.character), BooleanClause.Occur.MUST)
-            .add(IntPoint.newRangeQuery("endColumn", position.character, Int.MAX_VALUE), BooleanClause.Occur.MUST)
-            .build()
+        val query =
+            BooleanQuery.Builder()
+                .add(TermQuery(Term("uri", uri)), BooleanClause.Occur.MUST)
+                .add(IntPoint.newExactQuery("startLine", position.line + 1), BooleanClause.Occur.MUST)
+                .add(IntPoint.newExactQuery("endLine", position.line + 1), BooleanClause.Occur.MUST)
+                .add(IntPoint.newRangeQuery("startColumn", Int.MIN_VALUE, position.character), BooleanClause.Occur.MUST)
+                .add(IntPoint.newRangeQuery("endColumn", position.character, Int.MAX_VALUE), BooleanClause.Occur.MUST)
+                .build()
 
         val sortingField = SortedNumericSortField("size", SortField.Type.INT, true)
         val results = indexSearcher.search(query, 100, Sort(sortingField))
@@ -386,7 +466,11 @@ open class KolasuServer<T : Node>(
 
     protected open fun toLSPLocation(document: Document): Location {
         val uri = document.get("uri")
-        val range = Range(Position(document.get("startLine").toInt() - 1, document.get("startColumn").toInt()), Position(document.get("endLine").toInt() - 1, document.get("endColumn").toInt()))
+        val range =
+            Range(
+                Position(document.get("startLine").toInt() - 1, document.get("startColumn").toInt()),
+                Position(document.get("endLine").toInt() - 1, document.get("endColumn").toInt())
+            )
         return Location(uri, range)
     }
 
@@ -446,21 +530,32 @@ open class KolasuServer<T : Node>(
         exitProcess(0)
     }
 
-    protected open fun log(text: String, verboseExplanation: String? = null) {
+    protected open fun log(
+        text: String,
+        verboseExplanation: String? = null
+    ) {
         client.logTrace(LogTraceParams(text, verboseExplanation))
     }
 
-    protected open fun showNotification(text: String, messageType: MessageType = MessageType.Info) {
+    protected open fun showNotification(
+        text: String,
+        messageType: MessageType = MessageType.Info
+    ) {
         client.showMessage(MessageParams(messageType, text))
     }
 
-    protected open fun askClient(messageText: String, options: List<String> = listOf("Yes", "No"), messageType: MessageType = MessageType.Info): CompletableFuture<String> {
+    protected open fun askClient(
+        messageText: String,
+        options: List<String> = listOf("Yes", "No"),
+        messageType: MessageType = MessageType.Info
+    ): CompletableFuture<String> {
         val future = CompletableFuture<String>()
 
-        val request = ShowMessageRequestParams(options.map { MessageActionItem(it) }).apply {
-            type = messageType
-            message = messageText
-        }
+        val request =
+            ShowMessageRequestParams(options.map { MessageActionItem(it) }).apply {
+                type = messageType
+                message = messageText
+            }
 
         client.showMessageRequest(request).thenApply { item -> future.complete(item.title) }
 
@@ -475,9 +570,15 @@ open class KolasuServer<T : Node>(
 }
 
 interface CodeGenerator<T : Node> {
-    fun generate(tree: T, uri: String)
+    fun generate(
+        tree: T,
+        uri: String
+    )
 }
 
 interface SymbolResolver {
-    fun resolveSymbols(tree: Node?, uri: String)
+    fun resolveSymbols(
+        tree: Node?,
+        uri: String
+    )
 }
