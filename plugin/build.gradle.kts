@@ -50,6 +50,6 @@ buildConfig {
 ktlint {
     version = "1.2.1"
     filter {
-        exclude("**/generated/**")
+        exclude { it.file.path.contains(layout.buildDirectory.dir("generated").get().toString()) }
     }
 }
