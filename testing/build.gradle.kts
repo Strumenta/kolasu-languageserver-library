@@ -11,11 +11,15 @@ repositories {
     mavenCentral()
 }
 
+val kolasuVersion: String by project
+val lsp4jVersion: String by project
+val junitVersion: String by project
+
 dependencies {
     implementation(project(":kolasu-languageserver-library"))
-    implementation("com.strumenta.kolasu:kolasu-core:1.5.31")
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
-    implementation("org.junit.jupiter:junit-jupiter-api:5.7.1")
+    implementation("com.strumenta.kolasu:kolasu-core:$kolasuVersion")
+    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:$lsp4jVersion")
+    implementation("org.junit.jupiter:junit-jupiter-api:$junitVersion")
 }
 
 java {
@@ -77,4 +81,8 @@ publishing {
 
 signing {
     sign(publishing.publications.getByName("language-server-testing"))
+}
+
+ktlint {
+    version = "1.2.1"
 }

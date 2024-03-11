@@ -37,9 +37,8 @@ open class TestKolasuServer<T : Node>(
     protected open var codeGenerator: CodeGenerator<T>? = null,
     protected open var language: String = "languageserver",
     protected open var fileExtensions: List<String> = listOf(),
-    protected open var workspacePath: Path = Paths.get("src", "test", "resources")
+    protected open var workspacePath: Path = Paths.get("src", "test", "resources"),
 ) {
-
     protected open lateinit var server: KolasuServer<T>
 
     @BeforeEach
@@ -64,18 +63,24 @@ open class TestKolasuServer<T : Node>(
         server.connect(
             DiagnosticListenerClient {
                 assertEquals(amount, it.diagnostics.size)
-            }
+            },
         )
     }
 
-    protected open fun open(uri: String, text: String) {
+    protected open fun open(
+        uri: String,
+        text: String,
+    ) {
         val textDocument = TextDocumentItem(uri, "", 0, text)
         val parameters = DidOpenTextDocumentParams(textDocument)
 
         server.didOpen(parameters)
     }
 
-    protected open fun change(uri: String, text: String) {
+    protected open fun change(
+        uri: String,
+        text: String,
+    ) {
         val document = VersionedTextDocumentIdentifier(uri, null)
         val changes = listOf(TextDocumentContentChangeEvent(text))
         val parameters = DidChangeTextDocumentParams(document, changes)
@@ -90,21 +95,31 @@ open class TestKolasuServer<T : Node>(
         return server.documentSymbol(parameters).get()?.first()?.right
     }
 
-    protected open fun definition(uri: String, position: Position): Location? {
+    protected open fun definition(
+        uri: String,
+        position: Position,
+    ): Location? {
         val document = TextDocumentIdentifier(uri)
         val parameters = DefinitionParams(document, position)
 
         return server.definition(parameters).get()?.left?.first()
     }
 
-    protected open fun references(uri: String, position: Position, includeDeclaration: Boolean = true): MutableList<out Location>? {
+    protected open fun references(
+        uri: String,
+        position: Position,
+        includeDeclaration: Boolean = true,
+    ): MutableList<out Location>? {
         val document = TextDocumentIdentifier(uri)
         val parameters = ReferenceParams(document, position, ReferenceContext(includeDeclaration))
 
         return server.references(parameters).get()
     }
 
-    protected fun requestAtEachPositionInResourceFiles(name: String, request: (String, Position) -> Unit): List<Long> {
+    protected fun requestAtEachPositionInResourceFiles(
+        name: String,
+        request: (String, Position) -> Unit,
+    ): List<Long> {
         val timings = mutableListOf<Long>()
 
         for (file in Files.list(workspacePath)) {
