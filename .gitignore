@@ -3,3 +3,6 @@ bin
 **/build
 .idea
 .DS_STORE
+
+.tool-versions
+.java-version
