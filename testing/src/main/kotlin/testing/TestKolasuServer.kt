@@ -1,10 +1,7 @@
 package testing
 
 import com.google.gson.JsonObject
-import com.strumenta.kolasu.languageserver.CodeGenerator
 import com.strumenta.kolasu.languageserver.KolasuServer
-import com.strumenta.kolasu.model.Node
-import com.strumenta.kolasu.parsing.ASTParser
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DidChangeTextDocumentParams
@@ -30,24 +27,19 @@ import java.nio.file.Paths
 import kotlin.io.path.extension
 import kotlin.system.measureNanoTime
 
-open class TestKolasuServer<T : Node>(
-    protected open var parser: ASTParser<T>? = null,
-    protected open var enableDefinitionCapability: Boolean = false,
-    protected open var enableReferencesCapability: Boolean = false,
-    protected open var codeGenerator: CodeGenerator<T>? = null,
-    protected open var language: String = "languageserver",
-    protected open var fileExtensions: List<String> = listOf(),
-    protected open var workspacePath: Path = Paths.get("src", "test", "resources")
+open class TestKolasuServer(
+    val serverProvider: () -> KolasuServer,
+    val workspacePath: Path = Paths.get("src", "test", "resources")
 ) {
-    protected open lateinit var server: KolasuServer<T>
+
+    protected lateinit var server: KolasuServer
 
     @BeforeEach
     fun beforeEach() {
-        initializeServer()
+        this.server = serverProvider()
     }
 
     protected open fun initializeServer() {
-        server = KolasuServer(parser, language, fileExtensions, enableDefinitionCapability, enableReferencesCapability, codeGenerator)
         expectDiagnostics(0)
 
         val workspace = workspacePath.toUri().toString()
@@ -55,8 +47,8 @@ open class TestKolasuServer<T : Node>(
         server.initialized(InitializedParams())
 
         val configuration = JsonObject()
-        configuration.add(language, JsonObject())
-        server.didChangeConfiguration(DidChangeConfigurationParams(configuration))
+        configuration.add(this.server.language, JsonObject())
+        server.getWorkspaceService().didChangeConfiguration(DidChangeConfigurationParams(configuration))
     }
 
     protected open fun expectDiagnostics(amount: Int) {
@@ -74,7 +66,7 @@ open class TestKolasuServer<T : Node>(
         val textDocument = TextDocumentItem(uri, "", 0, text)
         val parameters = DidOpenTextDocumentParams(textDocument)
 
-        server.didOpen(parameters)
+        server.textDocumentService.didOpen(parameters)
     }
 
     protected open fun change(
@@ -85,14 +77,14 @@ open class TestKolasuServer<T : Node>(
         val changes = listOf(TextDocumentContentChangeEvent(text))
         val parameters = DidChangeTextDocumentParams(document, changes)
 
-        return server.didChange(parameters)
+        return server.textDocumentService.didChange(parameters)
     }
 
     protected open fun outline(uri: String): DocumentSymbol? {
         val document = TextDocumentIdentifier(uri)
         val parameters = DocumentSymbolParams(document)
 
-        return server.documentSymbol(parameters).get()?.first()?.right
+        return server.textDocumentService.documentSymbol(parameters).get()?.first()?.right
     }
 
     protected open fun definition(
@@ -102,7 +94,7 @@ open class TestKolasuServer<T : Node>(
         val document = TextDocumentIdentifier(uri)
         val parameters = DefinitionParams(document, position)
 
-        return server.definition(parameters).get()?.left?.first()
+        return server.textDocumentService.definition(parameters).get()?.left?.first()
     }
 
     protected open fun references(
@@ -113,7 +105,7 @@ open class TestKolasuServer<T : Node>(
         val document = TextDocumentIdentifier(uri)
         val parameters = ReferenceParams(document, position, ReferenceContext(includeDeclaration))
 
-        return server.references(parameters).get()
+        return server.textDocumentService.references(parameters).get()
     }
 
     protected fun requestAtEachPositionInResourceFiles(
@@ -123,7 +115,7 @@ open class TestKolasuServer<T : Node>(
         val timings = mutableListOf<Long>()
 
         for (file in Files.list(workspacePath)) {
-            if (fileExtensions.contains(file.extension)) {
+            if (this.server.fileExtensions.contains(file.extension)) {
                 val uri = file.toUri().toString()
                 val lines = Files.readAllLines(file)
 

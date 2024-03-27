@@ -6,15 +6,12 @@ plugins {
     signing
 }
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     implementation(libs.kotlin.reflect)
     implementation(libs.kolasu.core)
+    implementation(libs.kolasu.semantics)
     implementation(libs.lsp4j)
-    implementation(libs.lucene)
+    implementation(libs.antlr4.c3)
 }
 
 java {

@@ -30,10 +30,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.dependencies.add("implementation", "com.strumenta.kolasu:language-server:${BuildConfig.KOLASU_LSP_VERSION}")
         project.dependencies.add("implementation", "com.strumenta.kolasu:kolasu-core:${BuildConfig.KOLASU_VERSION}")
         project.dependencies.add("implementation", "org.eclipse.lsp4j:org.eclipse.lsp4j:${BuildConfig.LSP4J_VERSION}")
-        project.dependencies.add("implementation", "org.apache.lucene:lucene-core:${BuildConfig.LUCENE_VERSION}")
-        project.dependencies.add("implementation", "org.apache.lucene:lucene-codecs:${BuildConfig.LUCENE_VERSION}")
-        project.dependencies.add("implementation", "org.apache.lucene:lucene-queryparser:${BuildConfig.LUCENE_VERSION}")
-
+        project.dependencies.add("implementation", "com.vmware.antlr4-c3:antlr4-c3:${BuildConfig.ANTLR4C3_VERSION}")
         project.dependencies.add("testImplementation", "com.strumenta.kolasu:language-server-testing:${BuildConfig.KOLASU_LSP_VERSION}")
         project.dependencies.add("testImplementation", "org.junit.jupiter:junit-jupiter:${BuildConfig.JUNIT_VERSION}")
 
@@ -74,10 +71,10 @@ class LanguageServerPlugin : Plugin<Project?> {
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
         shadowJar.manifest.attributes["Multi-Release"] = "true"
-        shadowJar.manifest.attributes["Class-Path"] =
-            "lucene-core-${BuildConfig.LUCENE_VERSION}.jar lucene-codecs-${BuildConfig.LUCENE_VERSION}.jar"
+//        shadowJar.manifest.attributes["Class-Path"] =
+//            "lucene-core-${BuildConfig.LUCENE_VERSION}.jar lucene-codecs-${BuildConfig.LUCENE_VERSION}.jar"
         shadowJar.archiveFileName.set("$language.jar")
-        shadowJar.excludes.add("org/apache/lucene/**/*")
+//        shadowJar.excludes.add("org/apache/lucene/**/*")
 
         val testTask = project.tasks.getByName("test") as org.gradle.api.tasks.testing.Test
         testTask.useJUnitPlatform()
@@ -328,18 +325,18 @@ class LanguageServerPlugin : Plugin<Project?> {
         } else {
             Files.writeString(Paths.get(configuration.outputPath.toString(), "LICENSE.md"), "Copyright Strumenta SRL")
         }
-        ProcessBuilder(
-            "curl",
-            "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar",
-            "-o",
-            Paths.get(configuration.outputPath.toString(), "lucene-core-9.8.0.jar").toString()
-        ).start().waitFor()
-        ProcessBuilder(
-            "curl",
-            "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar",
-            "-o",
-            Paths.get(configuration.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()
-        ).start().waitFor()
+//        ProcessBuilder(
+//            "curl",
+//            "https://repo1.maven.org/maven2/org/apache/lucene/lucene-core/9.8.0/lucene-core-9.8.0.jar",
+//            "-o",
+//            Paths.get(configuration.outputPath.toString(), "lucene-core-9.8.0.jar").toString()
+//        ).start().waitFor()
+//        ProcessBuilder(
+//            "curl",
+//            "https://repo1.maven.org/maven2/org/apache/lucene/lucene-codecs/9.8.0/lucene-codecs-9.8.0.jar",
+//            "-o",
+//            Paths.get(configuration.outputPath.toString(), "lucene-codecs-9.8.0.jar").toString()
+//        ).start().waitFor()
 
         ProcessBuilder(npx, "vsce@2.15", "package").directory(configuration.outputPath.toFile()).start().waitFor()
     }

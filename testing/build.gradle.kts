@@ -7,10 +7,6 @@ plugins {
     signing
 }
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     implementation(project(":kolasu-languageserver-library"))
     implementation(libs.kolasu.core)
