@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ktlint)
@@ -45,4 +47,21 @@ ktlint {
     filter {
         exclude { it.file.path.contains(layout.buildDirectory.dir("generated").get().toString()) }
     }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType(KotlinCompile::class).all {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+
+val isReleaseVersion = !(project.version as String).endsWith("SNAPSHOT")
+
+tasks.withType(Sign::class) {
+    enabled = isReleaseVersion
 }

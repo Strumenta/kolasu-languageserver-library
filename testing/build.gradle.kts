@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.net.URI
 
 plugins {
@@ -77,4 +78,19 @@ publishing {
 
 signing {
     sign(publishing.publications.getByName("language-server-testing"))
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType(KotlinCompile::class).all {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+
+tasks.withType(Sign::class) {
+    enabled = isReleaseVersion
 }
