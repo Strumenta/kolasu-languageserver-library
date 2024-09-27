@@ -16,7 +16,7 @@ dependencyResolutionManagement {
             val ktlintPluginVersion = version("ktlint", "11.6.0")
             val ktlintLibraryVersion = version("ktlint-library", "0.47.1")
             val kotlinVersion = version("kotlin", "1.8.22")
-            val kolasuVersion = version("kolasu", "1.5.45")
+            val kolasuVersion = version("kolasu", "1.5.73")
             val lsp4jVersion = version("lsp4j", "0.21.1")
             val luceneVersion = version("lucene", "9.8.0")
             val junit5Version = version("junit5", "5.7.1")
