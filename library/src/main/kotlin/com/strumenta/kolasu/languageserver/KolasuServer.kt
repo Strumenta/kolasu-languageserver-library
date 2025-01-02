@@ -583,8 +583,9 @@ open class KolasuServer<T : Node>(
 
     override fun semanticTokensFull(params: SemanticTokensParams): CompletableFuture<SemanticTokens> {
         val ast = files[params.textDocument.uri]?.root ?: return CompletableFuture.completedFuture(SemanticTokens())
+        val code = files[params.textDocument.uri]?.code ?: return CompletableFuture.completedFuture(SemanticTokens())
         val tokens = semanticTokens(ast)
-        return CompletableFuture.completedFuture(encode(tokens))
+        return CompletableFuture.completedFuture(encode(tokens, code))
     }
 
     open fun semanticTokens(ast: T): List<SemanticToken> = listOf()
