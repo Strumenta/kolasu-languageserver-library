@@ -1,6 +1,10 @@
 package com.strumenta.kolasu.languageserver
 
 import com.google.gson.JsonObject
+import com.strumenta.kolasu.languageserver.semanticHighlighting.SemanticToken
+import com.strumenta.kolasu.languageserver.semanticHighlighting.SemanticTokenModifier
+import com.strumenta.kolasu.languageserver.semanticHighlighting.SemanticTokenType
+import com.strumenta.kolasu.languageserver.semanticHighlighting.encode
 import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
@@ -60,6 +64,10 @@ import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.ReferenceParams
 import org.eclipse.lsp4j.Registration
 import org.eclipse.lsp4j.RegistrationParams
+import org.eclipse.lsp4j.SemanticTokens
+import org.eclipse.lsp4j.SemanticTokensLegend
+import org.eclipse.lsp4j.SemanticTokensParams
+import org.eclipse.lsp4j.SemanticTokensWithRegistrationOptions
 import org.eclipse.lsp4j.ServerCapabilities
 import org.eclipse.lsp4j.SetTraceParams
 import org.eclipse.lsp4j.ShowMessageRequestParams
@@ -154,6 +162,12 @@ open class KolasuServer<T : Node>(
         capabilities.setDocumentSymbolProvider(true)
         capabilities.setDefinitionProvider(this.enableDefinitionCapability)
         capabilities.setReferencesProvider(this.enableReferencesCapability)
+
+
+        capabilities.semanticTokensProvider = SemanticTokensWithRegistrationOptions().apply {
+            legend = SemanticTokensLegend(SemanticTokenType.values().map { it.legendName }, SemanticTokenModifier.values().map { it.legendName });
+            full = Either.forLeft(true)
+        }
 
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
@@ -567,6 +581,16 @@ open class KolasuServer<T : Node>(
         val reader = DirectoryReader.open(FSDirectory.open(indexPath))
         indexSearcher = IndexSearcher(reader)
     }
+
+
+    override fun semanticTokensFull(params: SemanticTokensParams): CompletableFuture<SemanticTokens> {
+        val ast = files[params.textDocument.uri]?.root ?: return CompletableFuture.completedFuture(SemanticTokens())
+        val code = files[params.textDocument.uri]?.code ?: return CompletableFuture.completedFuture(SemanticTokens())
+        val tokens = semanticTokens(ast)
+        return CompletableFuture.completedFuture(encode(tokens, code))
+    }
+
+    open fun semanticTokens(ast: T): List<SemanticToken> = listOf()
 }
 
 interface CodeGenerator<T : Node> {
