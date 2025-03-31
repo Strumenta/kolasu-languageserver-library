@@ -12,6 +12,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 import java.util.Locale
+import kotlin.io.path.extension
 
 class LanguageServerPlugin : Plugin<Project?> {
     private lateinit var configuration: Configuration
@@ -64,6 +65,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                 "Main.kt"
             )
         configuration.textmateGrammarPath = Paths.get(projectPath, "src", "main", "resources", "grammar.tmLanguage")
+        configuration.languageConfigurationPath = Paths.get(projectPath, "src", "main", "resources", "language-configuration.json")
         configuration.logoPath = Paths.get(projectPath, "src", "main", "resources", "logo.png")
         configuration.fileIconPath = Paths.get(projectPath, "src", "main", "resources", "fileIcon.png")
         configuration.languageClientPath = Paths.get(projectPath, "src", "main", "resources", "client.js")
@@ -185,14 +187,21 @@ class LanguageServerPlugin : Plugin<Project?> {
         } else {
             var grammars = ""
             if (Files.exists(configuration.textmateGrammarPath)) {
+                val filename = configuration.textmateGrammarPath.fileName
                 grammars =
                     """
                     ,
                     "grammars":
                     [
-                        {"language": "${configuration.language}", "scopeName": "${configuration.textmateGrammarScope}", "path": "./grammar.tmLanguage"}
+                        {"language": "${configuration.language}", "scopeName": "${configuration.textmateGrammarScope}", "path": "./$filename"}
                     ]
                     """.trimIndent()
+            }
+
+            var languageConfig = ""
+            if (Files.exists(configuration.languageConfigurationPath)) {
+                val filename = configuration.languageConfigurationPath.fileName
+                languageConfig = """, "configuration": "./$filename""""
             }
 
             var logo = ""
@@ -219,7 +228,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                         [
                             {"id": "${configuration.language}", "extensions": ["${configuration.fileExtensions.joinToString(
                     "\", \""
-                ){ ".$it" }}"]$fileIcon}
+                ){ ".$it" }}"]$fileIcon$languageConfig}
                         ],
                         "configuration": {
                             "title": "${configuration.language.capitalized()}",
@@ -300,9 +309,19 @@ class LanguageServerPlugin : Plugin<Project?> {
         ).directory(project.projectDir).start().waitFor()
 
         if (Files.exists(configuration.textmateGrammarPath)) {
+            val filename = configuration.textmateGrammarPath.fileName
             Files.copy(
                 configuration.textmateGrammarPath,
-                Paths.get(configuration.outputPath.toString(), "grammar.tmLanguage"),
+                Paths.get(configuration.outputPath.toString(), filename.toString()),
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        }
+
+        if (Files.exists(configuration.languageConfigurationPath)) {
+            val filename = configuration.languageConfigurationPath.fileName
+            Files.copy(
+                configuration.languageConfigurationPath,
+                Paths.get(configuration.outputPath.toString(), filename.toString()),
                 StandardCopyOption.REPLACE_EXISTING
             )
         }
