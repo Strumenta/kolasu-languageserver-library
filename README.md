@@ -81,3 +81,12 @@ This has its own benefits and problems. For showcasing both scenarios, outlines 
 [Window features]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#windowFeatures-side
 [Workspace features]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspaceFeatures-side
 [language features]: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#languageFeatures-side
+
+## Release
+
+From the main branch run:
+```
+./gradlew release
+```
+
+This should move from the snapshot version to a normal version, create a git tag, publish the package on GitHub Packages, and move to the next snapshot version.
