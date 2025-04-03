@@ -227,11 +227,11 @@ class LanguageServerPlugin : Plugin<Project?> {
                         [
                             {
                                 "id": "${configuration.language}", 
-                                ${listOfNotNull(
-                                    """"extensions": ["${configuration.fileExtensions.joinToString("\", \""){ ".$it" }}"]""",
-                                    fileIcon,
-                                    languageConfig
-                                ).joinToString(",\n")}
+                ${listOfNotNull(
+                    """"extensions": ["${configuration.fileExtensions.joinToString("\", \""){ ".$it" }}"]""",
+                    fileIcon,
+                    languageConfig
+                ).joinToString(",\n")}
                             }
                         ],
                         "configuration": {
