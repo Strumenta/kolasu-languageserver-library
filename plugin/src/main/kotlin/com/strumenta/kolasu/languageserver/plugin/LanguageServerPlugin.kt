@@ -185,22 +185,22 @@ class LanguageServerPlugin : Plugin<Project?> {
             )
         } else {
             var grammars = ""
-            if (Files.exists(configuration.textmateGrammarPath)) {
-                val filename = configuration.textmateGrammarPath.fileName
+            val grammarPath = configuration.textmateGrammarPath
+            if (Files.exists(grammarPath)) {
                 grammars =
                     """
                     ,
                     "grammars":
                     [
-                        {"language": "${configuration.language}", "scopeName": "${configuration.textmateGrammarScope}", "path": "./$filename"}
+                        {"language": "${configuration.language}", "scopeName": "${configuration.textmateGrammarScope}", "path": "./${grammarPath.fileName}"}
                     ]
                     """.trimIndent()
             }
 
-            var languageConfig = ""
-            if (Files.exists(configuration.languageConfigurationPath)) {
-                val filename = configuration.languageConfigurationPath.fileName
-                languageConfig = """, "configuration": "./$filename""""
+            var languageConfig: String? = null
+            val languageConfPath = configuration.languageConfigurationPath
+            if (Files.exists(languageConfPath)) {
+                languageConfig = """"configuration": "./${languageConfPath.fileName}""""
             }
 
             var logo = ""
@@ -208,9 +208,9 @@ class LanguageServerPlugin : Plugin<Project?> {
                 logo = """"icon": "logo.png","""
             }
 
-            var fileIcon = ""
+            var fileIcon: String? = null
             if (Files.exists(configuration.fileIconPath)) {
-                fileIcon = """, "icon": {"dark": "fileIcon.png", "light": "fileIcon.png"}"""
+                fileIcon = """"icon": {"dark": "fileIcon.png", "light": "fileIcon.png"}"""
             }
 
             Files.writeString(
@@ -225,9 +225,14 @@ class LanguageServerPlugin : Plugin<Project?> {
                     {
                         "languages":
                         [
-                            {"id": "${configuration.language}", "extensions": ["${configuration.fileExtensions.joinToString(
-                    "\", \""
-                ){ ".$it" }}"]$fileIcon$languageConfig}
+                            {
+                                "id": "${configuration.language}", 
+                                ${listOfNotNull(
+                                    """"extensions": ["${configuration.fileExtensions.joinToString("\", \""){ ".$it" }}"]""",
+                                    fileIcon,
+                                    languageConfig
+                                ).joinToString(",\n")}
+                            }
                         ],
                         "configuration": {
                             "title": "${configuration.language.capitalized()}",
