@@ -64,6 +64,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                 "Main.kt"
             )
         configuration.textmateGrammarPath = Paths.get(projectPath, "src", "main", "resources", "grammar.tmLanguage")
+        configuration.languageConfigurationPath = Paths.get(projectPath, "src", "main", "resources", "language-configuration.json")
         configuration.logoPath = Paths.get(projectPath, "src", "main", "resources", "logo.png")
         configuration.fileIconPath = Paths.get(projectPath, "src", "main", "resources", "fileIcon.png")
         configuration.languageClientPath = Paths.get(projectPath, "src", "main", "resources", "client.js")
@@ -184,15 +185,22 @@ class LanguageServerPlugin : Plugin<Project?> {
             )
         } else {
             var grammars = ""
-            if (Files.exists(configuration.textmateGrammarPath)) {
+            val grammarPath = configuration.textmateGrammarPath
+            if (Files.exists(grammarPath)) {
                 grammars =
                     """
                     ,
                     "grammars":
                     [
-                        {"language": "${configuration.language}", "scopeName": "${configuration.textmateGrammarScope}", "path": "./grammar.tmLanguage"}
+                        {"language": "${configuration.language}", "scopeName": "${configuration.textmateGrammarScope}", "path": "./${grammarPath.fileName}"}
                     ]
                     """.trimIndent()
+            }
+
+            var languageConfig: String? = null
+            val languageConfPath = configuration.languageConfigurationPath
+            if (Files.exists(languageConfPath)) {
+                languageConfig = """"configuration": "./${languageConfPath.fileName}""""
             }
 
             var logo = ""
@@ -200,9 +208,9 @@ class LanguageServerPlugin : Plugin<Project?> {
                 logo = """"icon": "logo.png","""
             }
 
-            var fileIcon = ""
+            var fileIcon: String? = null
             if (Files.exists(configuration.fileIconPath)) {
-                fileIcon = """, "icon": {"dark": "fileIcon.png", "light": "fileIcon.png"}"""
+                fileIcon = """"icon": {"dark": "fileIcon.png", "light": "fileIcon.png"}"""
             }
 
             Files.writeString(
@@ -217,9 +225,14 @@ class LanguageServerPlugin : Plugin<Project?> {
                     {
                         "languages":
                         [
-                            {"id": "${configuration.language}", "extensions": ["${configuration.fileExtensions.joinToString(
-                    "\", \""
-                ){ ".$it" }}"]$fileIcon}
+                            {
+                                "id": "${configuration.language}", 
+                ${listOfNotNull(
+                    """"extensions": ["${configuration.fileExtensions.joinToString("\", \""){ ".$it" }}"]""",
+                    fileIcon,
+                    languageConfig
+                ).joinToString(",\n")}
+                            }
                         ],
                         "configuration": {
                             "title": "${configuration.language.capitalized()}",
@@ -300,9 +313,19 @@ class LanguageServerPlugin : Plugin<Project?> {
         ).directory(project.projectDir).start().waitFor()
 
         if (Files.exists(configuration.textmateGrammarPath)) {
+            val filename = configuration.textmateGrammarPath.fileName
             Files.copy(
                 configuration.textmateGrammarPath,
-                Paths.get(configuration.outputPath.toString(), "grammar.tmLanguage"),
+                Paths.get(configuration.outputPath.toString(), filename.toString()),
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        }
+
+        if (Files.exists(configuration.languageConfigurationPath)) {
+            val filename = configuration.languageConfigurationPath.fileName
+            Files.copy(
+                configuration.languageConfigurationPath,
+                Paths.get(configuration.outputPath.toString(), filename.toString()),
                 StandardCopyOption.REPLACE_EXISTING
             )
         }

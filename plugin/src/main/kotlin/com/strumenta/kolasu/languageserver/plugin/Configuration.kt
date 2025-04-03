@@ -14,6 +14,7 @@ open class Configuration {
     lateinit var serverJarPath: Path
     lateinit var examplesPath: Path
     lateinit var textmateGrammarPath: Path
+    lateinit var languageConfigurationPath: Path
     lateinit var logoPath: Path
     lateinit var fileIconPath: Path
     lateinit var languageClientPath: Path
