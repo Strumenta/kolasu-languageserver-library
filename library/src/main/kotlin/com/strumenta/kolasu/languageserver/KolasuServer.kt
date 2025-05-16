@@ -191,16 +191,10 @@ open class KolasuServer<T : Node>(
     }
 
     override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
-        val settings = params?.settings as? JsonObject ?: return
-        configuration = settings[language].asJsonObject
+        val settings = params?.settings as? JsonObject ?: JsonObject()
+        configuration = settings[language]?.asJsonObject ?: JsonObject()
 
-        if (Files.exists(indexPath)) {
-            indexPath.toFile().deleteRecursively()
-        }
-        val indexDirectory = FSDirectory.open(indexPath)
-        val indexConfiguration = IndexWriterConfig(StandardAnalyzer()).apply { openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND }
-        indexWriter = IndexWriter(indexDirectory, indexConfiguration)
-        commitIndex()
+        initIndex()
 
         client.createProgress(WorkDoneProgressCreateParams(Either.forLeft("indexing")))
         client.notifyProgress(
@@ -227,6 +221,17 @@ open class KolasuServer<T : Node>(
             }
         }
         client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressEnd())))
+    }
+
+    private fun initIndex() {
+        if (Files.exists(indexPath)) {
+            indexPath.toFile().deleteRecursively()
+        }
+        val indexDirectory = FSDirectory.open(indexPath)
+        val indexConfiguration =
+            IndexWriterConfig(StandardAnalyzer()).apply { openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND }
+        indexWriter = IndexWriter(indexDirectory, indexConfiguration)
+        commitIndex()
     }
 
     override fun setTrace(params: SetTraceParams?) {
@@ -259,12 +264,20 @@ open class KolasuServer<T : Node>(
         uri: String,
         text: String
     ) {
-        if (!::indexWriter.isInitialized) return
 
         val parsingResult = parser?.parse(text) ?: return
         files[uri] = parsingResult
 
         val tree = parsingResult.root ?: return
+
+        updateIndex(uri, tree)
+        reportDiagnostics(parsingResult, tree, uri)
+    }
+
+    private fun updateIndex(uri: String, tree: Node) {
+        if (!::indexWriter.isInitialized) {
+            initIndex()
+        }
 
         indexWriter.deleteDocuments(TermQuery(Term("uri", uri)))
         commitIndex()
@@ -303,7 +316,9 @@ open class KolasuServer<T : Node>(
             indexWriter.addDocument(document)
         }
         commitIndex()
+    }
 
+    private fun reportDiagnostics(parsingResult: ParsingResult<T>, tree: T, uri: String) {
         val showASTWarnings = configuration["showASTWarnings"]?.asBoolean ?: false
         val showLeafPositions = configuration["showLeafPositions"]?.asBoolean ?: false
         val showParsingErrors = configuration["showParsingErrors"]?.asBoolean ?: true
@@ -323,9 +338,11 @@ open class KolasuServer<T : Node>(
                     diagnostics.add(
                         Diagnostic(
                             toLSPRange(node.position!!),
-                            "Leaf type: ${node.simpleNodeType} but findByPositionType: ${tree.findByPosition(
-                                node.position!!
-                            )?.simpleNodeType}"
+                            "Leaf type: ${node.simpleNodeType} but findByPositionType: ${
+                                tree.findByPosition(
+                                    node.position!!
+                                )?.simpleNodeType
+                            }"
                         ).apply {
                             severity = DiagnosticSeverity.Warning
                         }

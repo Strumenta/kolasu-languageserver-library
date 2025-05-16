@@ -19,7 +19,7 @@ The easiest way to use this library is to:
 2. add the `com.strumenta.kolasu.language-server-plugin` version `1.0.0` to the list of gradle plugins
 3. optionally configure the language server by adding a gradle extension called `languageServer`
 4. run the `createVscodeExtension` gradle task
-5. run the `launchVscodeExtension` gradle task
+5. run the `launchVscodeEditor` gradle task
 
 ## Debugging the language server
 
