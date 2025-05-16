@@ -21,4 +21,5 @@ open class Configuration {
     lateinit var packageDefinitionPath: Path
     lateinit var licensePath: Path
     lateinit var outputPath: Path
+    var debugPort: Int? = null
 }
