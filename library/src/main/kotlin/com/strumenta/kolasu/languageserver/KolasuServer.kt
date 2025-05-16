@@ -11,6 +11,7 @@ import com.strumenta.kolasu.parsing.ASTParser
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
 import com.strumenta.kolasu.traversing.walk
+import com.strumenta.kolasu.validation.IssueSeverity
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
@@ -161,7 +162,7 @@ open class KolasuServer<T : Node>(
     override fun initialized(params: InitializedParams?) {
         val watchers = mutableListOf<FileSystemWatcher>()
         for (folder in folders) {
-            watchers.add(FileSystemWatcher(Either.forLeft(URI(folder).path + """/**/*{${extensions.joinToString(","){".$it"}}}""")))
+            watchers.add(FileSystemWatcher(Either.forLeft(URI(folder).path + """/**/*{${extensions.joinToString(",") { ".$it" }}}""")))
         }
         client.registerCapability(
             RegistrationParams(
@@ -198,7 +199,10 @@ open class KolasuServer<T : Node>(
 
         client.createProgress(WorkDoneProgressCreateParams(Either.forLeft("indexing")))
         client.notifyProgress(
-            ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing" }))
+            ProgressParams(
+                Either.forLeft("indexing"),
+                Either.forLeft(WorkDoneProgressBegin().apply { title = "indexing" })
+            )
         )
         for (folder in folders) {
             val projectFiles = File(URI(folder)).walk().filter { extensions.contains(it.extension) }.toList()
@@ -327,7 +331,14 @@ open class KolasuServer<T : Node>(
 
         if (showParsingErrors) {
             for (issue in parsingResult.issues) {
-                diagnostics.add(Diagnostic(toLSPRange(issue.position!!), issue.message))
+                diagnostics.add(
+                    Diagnostic(
+                        toLSPRange(issue.position!!),
+                        issue.message,
+                        toLSPSeverity(issue.severity),
+                        "$language parser"
+                    )
+                )
             }
         }
         if (showASTWarnings || showLeafPositions) {
@@ -413,7 +424,8 @@ open class KolasuServer<T : Node>(
     ): CompletableFuture<Either<MutableList<out Location>, MutableList<out LocationLink>>> {
         val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
 
-        val symbolID = document.fields.find { it.name() == "reference" }?.stringValue() ?: return CompletableFuture.completedFuture(null)
+        val symbolID = document.fields.find { it.name() == "reference" }?.stringValue()
+            ?: return CompletableFuture.completedFuture(null)
         val result =
             indexSearcher.search(
                 TermQuery(Term("uuid", symbolID)),
@@ -430,7 +442,8 @@ open class KolasuServer<T : Node>(
     override fun references(params: ReferenceParams?): CompletableFuture<MutableList<out Location>> {
         val document = getDocument(params) ?: return CompletableFuture.completedFuture(null)
 
-        val symbolID = document.fields.find { it.name() == "reference" }?.stringValue() ?: return CompletableFuture.completedFuture(null)
+        val symbolID = document.fields.find { it.name() == "reference" }?.stringValue()
+            ?: return CompletableFuture.completedFuture(null)
         val results = indexSearcher.search(TermQuery(Term("reference", symbolID)), Int.MAX_VALUE).scoreDocs
 
         val list = mutableListOf<Location>()
@@ -491,6 +504,14 @@ open class KolasuServer<T : Node>(
         return Location(uri, range)
     }
 
+    protected open fun toLSPSeverity(severity: IssueSeverity): DiagnosticSeverity {
+        return when (severity) {
+            IssueSeverity.INFO -> DiagnosticSeverity.Information
+            IssueSeverity.WARNING -> DiagnosticSeverity.Warning
+            IssueSeverity.ERROR -> DiagnosticSeverity.Error
+        }
+    }
+
     protected open fun toKolasuRange(position: Position): com.strumenta.kolasu.model.Position {
         val start = Point(position.line + 1, position.character)
         val end = Point(position.line + 1, position.character)
@@ -524,15 +545,18 @@ open class KolasuServer<T : Node>(
 
                     parse(uri, text)
                 }
+
                 FileChangeType.Changed -> {
                     val uri = change.uri
                     val text = Files.readString(Paths.get(URI(uri)))
 
                     parse(uri, text)
                 }
+
                 FileChangeType.Deleted -> {
                     files.remove(change.uri)
                 }
+
                 null -> {}
             }
         }
