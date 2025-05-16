@@ -71,6 +71,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         configuration.packageDefinitionPath = Paths.get(projectPath, "src", "main", "resources", "package.json")
         configuration.licensePath = Paths.get(projectPath, "src", "main", "resources", "LICENSE.md")
         configuration.outputPath = Paths.get(projectPath, "build", "vscode")
+        configuration.debugPort = null
 
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
