@@ -280,17 +280,24 @@ class LanguageServerPlugin : Plugin<Project?> {
                 """
                 let {LanguageClient} = require("./node_modules/vscode-languageclient/node");
                 
+                let languageClient;
+                
                 async function activate (context)
                 {
-                    let productionServer = {run: {command: "java", args: $javaProcessArguments}};
+                    let javaProcessInfo = {run: {command: "java", args: $javaProcessArguments}};
                 
-                    let languageClient = new LanguageClient("${configuration.language}", "${configuration.language} language server", productionServer, {documentSelector: ["${configuration.language}"]});
+                    languageClient = new LanguageClient("${configuration.language}", "${configuration.language} language server", javaProcessInfo, {documentSelector: ["${configuration.language}"]});
                     await languageClient.start();
                 
                     context.subscriptions.push(languageClient);
                 }
                 
-                module.exports = {activate};
+                async function deactivate()
+                {
+                    await languageClient?.stop();
+                }
+                
+                module.exports = {activate, deactivate};
                 """.trimIndent()
             )
         }
