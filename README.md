@@ -30,7 +30,7 @@ When set to a valid port number, the underlying java process will listen on that
 
 To attach a debugger from `idea`, create a `Remote JVM Debug` debug configuration with the default configuration, but pointing to the port specified.
 
-Now, run the `launchVscodeExtension` task to open the editor and start the language server process. 
+Now, run the `launchVscodeEditor` task to open the editor and start the language server process. 
 While the editor is running, one can attach the debugger using the `idea` task and the execution will stop in the language server breakpoints.
 The debugger can be detached and reattached any number of times.
 
