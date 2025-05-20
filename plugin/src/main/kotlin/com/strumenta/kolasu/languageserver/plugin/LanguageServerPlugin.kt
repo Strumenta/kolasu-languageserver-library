@@ -72,6 +72,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         configuration.licensePath = Paths.get(projectPath, "src", "main", "resources", "LICENSE.md")
         configuration.outputPath = Paths.get(projectPath, "build", "vscode")
         configuration.debugPort = null
+        configuration.suspendExecutionUntilDebuggerAttached = false
 
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
@@ -273,7 +274,8 @@ class LanguageServerPlugin : Plugin<Project?> {
         } else {
             var javaProcessArguments = """["-jar", context.asAbsolutePath("server.jar")]"""
             if (configuration.debugPort != null) {
-                javaProcessArguments = """["-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,quiet=y,address=*:${configuration.debugPort}", "-jar", context.asAbsolutePath("server.jar")]"""
+                val suspend = if (configuration.suspendExecutionUntilDebuggerAttached) "y" else "n"
+                javaProcessArguments = """["-agentlib:jdwp=transport=dt_socket,server=y,suspend=$suspend,quiet=y,address=*:${configuration.debugPort}", "-jar", context.asAbsolutePath("server.jar")]"""
             }
             Files.writeString(
                 Paths.get(configuration.outputPath.toString(), "client.js"),
