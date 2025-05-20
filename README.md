@@ -36,7 +36,8 @@ The debugger can be detached and reattached any number of times.
 
 When the language server extension deactivates, for example because the editor is closed, the underlying java process is stopped and also the debugger task if attached.
 
-If interested in debugging the initializing code, one can enable the `suspend` flag in the jvm execution flags. That way the server process will stop until a debugger is attached.
+If interested in debugging the initializing code, one can enable the `suspendExecutionUntilDebuggerAttached` flag in the `languageServer` gradle extension.
+This way, the server process won't start until a debugger is attached.
 
 ## Features
 
