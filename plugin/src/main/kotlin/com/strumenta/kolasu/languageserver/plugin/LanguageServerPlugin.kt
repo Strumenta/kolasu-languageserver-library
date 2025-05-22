@@ -71,6 +71,8 @@ class LanguageServerPlugin : Plugin<Project?> {
         configuration.packageDefinitionPath = Paths.get(projectPath, "src", "main", "resources", "package.json")
         configuration.licensePath = Paths.get(projectPath, "src", "main", "resources", "LICENSE.md")
         configuration.outputPath = Paths.get(projectPath, "build", "vscode")
+        configuration.debugPort = null
+        configuration.suspendExecutionUntilDebuggerAttached = false
 
         val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
         shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
@@ -270,22 +272,34 @@ class LanguageServerPlugin : Plugin<Project?> {
                 StandardCopyOption.REPLACE_EXISTING
             )
         } else {
+            var javaProcessArguments = """["-jar", context.asAbsolutePath("server.jar")]"""
+            if (configuration.debugPort != null) {
+                val suspend = if (configuration.suspendExecutionUntilDebuggerAttached) "y" else "n"
+                javaProcessArguments = """["-agentlib:jdwp=transport=dt_socket,server=y,suspend=$suspend,quiet=y,address=*:${configuration.debugPort}", "-jar", context.asAbsolutePath("server.jar")]"""
+            }
             Files.writeString(
                 Paths.get(configuration.outputPath.toString(), "client.js"),
                 """
                 let {LanguageClient} = require("./node_modules/vscode-languageclient/node");
                 
+                let languageClient;
+                
                 async function activate (context)
                 {
-                    let productionServer = {run: {command: "java", args: ["-jar", context.asAbsolutePath("server.jar")]}};
+                    let javaProcessInfo = {run: {command: "java", args: $javaProcessArguments}};
                 
-                    let languageClient = new LanguageClient("${configuration.language}", "${configuration.language} language server", productionServer, {documentSelector: ["${configuration.language}"]});
+                    languageClient = new LanguageClient("${configuration.language}", "${configuration.language} language server", javaProcessInfo, {documentSelector: ["${configuration.language}"]});
                     await languageClient.start();
                 
                     context.subscriptions.push(languageClient);
                 }
                 
-                module.exports = {activate};
+                async function deactivate()
+                {
+                    await languageClient?.stop();
+                }
+                
+                module.exports = {activate, deactivate};
                 """.trimIndent()
             )
         }

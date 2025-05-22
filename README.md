@@ -16,20 +16,28 @@ This repository contains four projects:
 The easiest way to use this library is to:
 
 1. add this repository to the sources where gradle looks for plugins
-2. add the `com.strumenta.kolasu.language-server-plugin` version `1.0.0` to the list of gradle plugins
+2. add the `com.strumenta.kolasu.language-server-plugin` version `x.y.z` to the list of gradle plugins
 3. optionally configure the language server by adding a gradle extension called `languageServer`
 4. run the `createVscodeExtension` gradle task
 5. run the `launchVscodeEditor` gradle task
 
 ## Debugging the language server
 
-By default, the generated language client code, launches the language server with `jvm` with debugger attaching enabled on port 5706.
+To enable debugging, specify the `debugPort` property in the `languageServer` gradle extension. 
+By default, it is set to `null` to run in production mode. 
 
-If using IntelliJ IDEA, one can create a `Remote JVM attach` task that attaches to `localhost:5706`.
+When set to a valid port number, the underlying java process will listen on that port for debugger attachments.
 
-Now, when the editor initializes the server, one may attach the debugger to the server process using this task, and intellij will pop up when a breakpoint is hit while using the editor.
+To attach a debugger from `idea`, create a `Remote JVM Debug` debug configuration with the default configuration, but pointing to the port specified.
 
-If interested in debugging the initializing code, one can enable the `suspend` flag in the jvm execution flags. That way the server process will stop until a debugger is attached.
+Now, run the `launchVscodeEditor` task to open the editor and start the language server process. 
+While the editor is running, one can attach the debugger using the `idea` task and the execution will stop in the language server breakpoints.
+The debugger can be detached and reattached any number of times.
+
+When the language server extension deactivates, for example because the editor is closed, the underlying java process is stopped and also the debugger task if attached.
+
+If interested in debugging the initializing code, one can enable the `suspendExecutionUntilDebuggerAttached` flag in the `languageServer` gradle extension.
+This way, the server process won't start until a debugger is attached.
 
 ## Features
 
