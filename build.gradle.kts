@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.release)
+    alias(libs.plugins.mavenPublish) apply false
 }
 
 allprojects {
