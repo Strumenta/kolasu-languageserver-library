@@ -86,8 +86,10 @@ tasks {
     withType(Sign::class) {
         enabled = isReleaseVersion
     }
+}
 
-    generateMetadataFileForMavenPublication {
-        dependsOn(plainJavadocJar)
+afterEvaluate {
+    tasks.named("generateMetadataFileForMavenPublication") {
+        dependsOn("kotlinSourcesJar", "dokkaJavadocJar")
     }
 }
