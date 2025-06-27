@@ -75,9 +75,3 @@ tasks {
         }
     }
 }
-
-afterEvaluate {
-    tasks.named("generateMetadataFileForMavenPublication") {
-        dependsOn("kotlinSourcesJar", "plainJavadocJar")
-    }
-}
