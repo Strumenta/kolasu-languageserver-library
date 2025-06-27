@@ -20,7 +20,7 @@ dependencies {
 }
 
 mavenPublishing {
-    configure(KotlinJvm(JavadocJar.None(), true))
+    configure(KotlinJvm(JavadocJar.Empty(), true))
 
     coordinates(
         groupId = "com.strumenta.kolasu",
