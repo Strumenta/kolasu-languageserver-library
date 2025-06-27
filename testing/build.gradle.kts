@@ -72,12 +72,19 @@ java {
     targetCompatibility = JavaVersion.VERSION_1_8
 }
 
-tasks.withType(KotlinCompile::class).all {
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
-}
 
-tasks.withType(Sign::class) {
-    enabled = isReleaseVersion
+tasks {
+    withType(KotlinCompile::class).all {
+        kotlinOptions {
+            jvmTarget = "1.8"
+        }
+    }
+
+    withType(Sign::class) {
+        enabled = isReleaseVersion
+    }
+
+    generateMetadataFileForMavenPublication {
+        dependsOn(plainJavadocJar)
+    }
 }
