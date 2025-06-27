@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.mavenPublish)
-    signing
 }
 
 repositories {
@@ -78,10 +77,6 @@ tasks {
         kotlinOptions {
             jvmTarget = "1.8"
         }
-    }
-
-    withType(Sign::class) {
-        enabled = isReleaseVersion
     }
 }
 

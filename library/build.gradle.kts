@@ -3,7 +3,6 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.mavenPublish)
-    signing
 }
 
 repositories {
@@ -81,10 +80,6 @@ tasks {
         kotlinOptions {
             jvmTarget = "1.8"
         }
-    }
-
-    withType(Sign::class) {
-        enabled = isReleaseVersion
     }
 }
 
