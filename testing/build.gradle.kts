@@ -63,7 +63,7 @@ mavenPublishing {
             }
         }
     }
-    publishToMavenCentral()
+    publishToMavenCentral("CENTRAL_PORTAL", true)
     signAllPublications()
 }
 
