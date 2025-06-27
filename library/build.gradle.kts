@@ -1,3 +1,5 @@
+import com.vanniktech.maven.publish.KotlinJvm
+import com.vanniktech.maven.publish.JavadocJar
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -16,14 +18,9 @@ dependencies {
     implementation(libs.lucene)
 }
 
-java {
-    withSourcesJar()
-    withJavadocJar()
-}
-
-val isReleaseVersion = !(project.version as String).endsWith("SNAPSHOT")
-
 mavenPublishing {
+    configure(KotlinJvm(JavadocJar.None(), true))
+
     coordinates(
         groupId = "com.strumenta.kolasu",
         artifactId = "language-server",

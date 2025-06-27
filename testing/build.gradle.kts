@@ -1,3 +1,5 @@
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.KotlinJvm
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -17,18 +19,13 @@ dependencies {
     implementation(libs.junit5)
 }
 
-java {
-    withSourcesJar()
-    withJavadocJar()
-}
-
-val isReleaseVersion = !(project.version as String).endsWith("SNAPSHOT")
-
 mavenPublishing {
+    configure(KotlinJvm(JavadocJar.None(), true))
+
     coordinates(
         groupId = "com.strumenta.kolasu",
         artifactId = "language-server-testing",
-        version = project.version as String,
+        version = project.version as String
     )
 
     pom {
@@ -70,7 +67,6 @@ java {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
 }
-
 
 tasks {
     withType(KotlinCompile::class).all {
