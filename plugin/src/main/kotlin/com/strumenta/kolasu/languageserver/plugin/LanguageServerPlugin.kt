@@ -116,7 +116,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                 "META-INF/*.SF",
                 "META-INF/*.DSA",
                 "META-INF/*.RSA",
-                "module-info.class",
+                "module-info.class"
             )
             shadowJar.dependencies { d -> d.exclude(d.dependency(project.dependencies.gradleApi())) }
         }
