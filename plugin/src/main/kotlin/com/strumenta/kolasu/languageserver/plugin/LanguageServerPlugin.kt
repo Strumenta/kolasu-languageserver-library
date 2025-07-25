@@ -1,11 +1,18 @@
 package com.strumenta.kolasu.languageserver.plugin
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
+import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.configurationcache.extensions.capitalized
+import org.gradle.jvm.tasks.Jar
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformJvmPlugin
 import org.jetbrains.kotlin.konan.file.File
 import java.nio.file.Files
@@ -14,7 +21,9 @@ import java.nio.file.StandardCopyOption
 import java.util.Locale
 
 class LanguageServerPlugin : Plugin<Project?> {
+    private val logger: Logger = Logging.getLogger(javaClass)
     private lateinit var configuration: Configuration
+    val SHADOW_JAR_TASK_NAME = "kolasuLanguageServerJar"
 
     override fun apply(project: Project?) {
         if (project == null) return
@@ -49,7 +58,7 @@ class LanguageServerPlugin : Plugin<Project?> {
         configuration.fileExtensions = mutableListOf(language)
         configuration.editor = "code"
         configuration.textmateGrammarScope = "main"
-        configuration.serverJarPath = Paths.get(projectPath, "build", "libs", "$language.jar")
+        configuration.serverJarPath = Paths.get(projectPath, "build", "libs", "$language-server.jar")
         configuration.examplesPath = Paths.get(project.rootDir.toString(), "examples")
         configuration.entryPointPath =
             Paths.get(
@@ -74,22 +83,48 @@ class LanguageServerPlugin : Plugin<Project?> {
         configuration.debugPort = null
         configuration.suspendExecutionUntilDebuggerAttached = false
 
-        val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
-        shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
-        shadowJar.manifest.attributes["Multi-Release"] = "true"
-        shadowJar.manifest.attributes["Class-Path"] =
-            "lucene-core-${BuildConfig.LUCENE_VERSION}.jar lucene-codecs-${BuildConfig.LUCENE_VERSION}.jar"
-        shadowJar.archiveFileName.set("$language.jar")
-        shadowJar.excludes.add("org/apache/lucene/**/*")
+        val shadowJar = configureShadowTask(project, language)
 
         val testTask = project.tasks.getByName("test") as org.gradle.api.tasks.testing.Test
         testTask.useJUnitPlatform()
 
-        addCreateVscodeExtensionTask(project)
-        addLaunchVscodeEditorTask(project)
+        val createVscodeExtensionTask = addCreateVscodeExtensionTask(project, shadowJar)
+        addLaunchVscodeEditorTask(project, createVscodeExtensionTask)
     }
 
-    private fun addLaunchVscodeEditorTask(project: Project) {
+    protected fun configureShadowTask(project: Project, language: String): TaskProvider<ShadowJar?> {
+        val convention = project.extensions.getByType(JavaPluginExtension::class.java)
+        val shadowJar = project.tasks.register(SHADOW_JAR_TASK_NAME, ShadowJar::class.java) { shadowJar ->
+            // Adapted from ShadowJavaPlugin.configureShadowTask
+            shadowJar.description = "Create a combined JAR of project and runtime dependencies"
+            val jarTask = project.tasks.getByName("jar") as Jar
+            shadowJar.manifest.inheritFrom(jarTask.manifest)
+            shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
+            shadowJar.manifest.attributes["Multi-Release"] = "true"
+            shadowJar.manifest.attributes["Class-Path"] =
+                "lucene-core-${BuildConfig.LUCENE_VERSION}.jar lucene-codecs-${BuildConfig.LUCENE_VERSION}.jar"
+            shadowJar.archiveFileName.set("$language-server.jar")
+            shadowJar.excludes.add("org/apache/lucene/**/*")
+            shadowJar.archiveClassifier.set("all")
+            shadowJar.from(convention.sourceSets.getByName("main").output)
+            shadowJar.configurations = listOf(
+                project.configurations.findByName("runtimeClasspath") ?: project.configurations.findByName("runtime")
+            )
+
+            shadowJar.exclude(
+                "META-INF/INDEX.LIST",
+                "META-INF/*.SF",
+                "META-INF/*.DSA",
+                "META-INF/*.RSA",
+                "module-info.class",
+            )
+            shadowJar.dependencies { d -> d.exclude(d.dependency(project.dependencies.gradleApi())) }
+        }
+        project.artifacts.add(ShadowBasePlugin.CONFIGURATION_NAME, shadowJar)
+        return shadowJar
+    }
+
+    private fun addLaunchVscodeEditorTask(project: Project, createVscodeExtensionTask: Task) {
         project.tasks.create("launchVscodeEditor").apply {
             group = "language server"
             description = "Launch the configured vscode editor with the language server installed (defaults to code)"
@@ -104,7 +139,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                         }
                     }
                 )
-            dependsOn(project.tasks.getByName("createVscodeExtension"))
+            dependsOn(createVscodeExtensionTask)
         }
     }
 
@@ -117,8 +152,8 @@ class LanguageServerPlugin : Plugin<Project?> {
         ).directory(project.projectDir).start().waitFor()
     }
 
-    private fun addCreateVscodeExtensionTask(project: Project) {
-        project.tasks.create("createVscodeExtension").apply {
+    private fun addCreateVscodeExtensionTask(project: Project, shadowJarTask: TaskProvider<*>): Task {
+        return project.tasks.create("createVscodeExtension").apply {
             group = "language server"
             description = "Create language server extension folder for vscode under build/vscode"
             actions =
@@ -132,7 +167,7 @@ class LanguageServerPlugin : Plugin<Project?> {
                         }
                     }
                 )
-            dependsOn(project.tasks.getByName("shadowJar"))
+            dependsOn(shadowJarTask)
             inputs.files(
                 configuration.entryPointPath,
                 configuration.textmateGrammarPath,
@@ -147,11 +182,11 @@ class LanguageServerPlugin : Plugin<Project?> {
     }
 
     fun isWindows(): Boolean {
-        return System.getProperty("os.name").toLowerCase().contains("win")
+        return System.getProperty("os.name").lowercase().contains("win")
     }
 
     private fun createVscodeExtension(project: Project) {
-        val shadowJar = project.tasks.getByName("shadowJar") as ShadowJar
+        val shadowJar = project.tasks.getByName(SHADOW_JAR_TASK_NAME) as ShadowJar
         val entryPoint = shadowJar.manifest.attributes["Main-Class"] as String
         if (entryPoint == "com.strumenta.${configuration.language}.languageserver.MainKt") {
             if (!Files.exists(configuration.entryPointPath)) {

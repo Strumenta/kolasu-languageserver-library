@@ -5,6 +5,7 @@ import com.strumenta.kolasu.model.Node
 import com.strumenta.kolasu.model.Point
 import com.strumenta.kolasu.model.PossiblyNamed
 import com.strumenta.kolasu.model.ReferenceByName
+import com.strumenta.kolasu.model.URLSource
 import com.strumenta.kolasu.model.children
 import com.strumenta.kolasu.model.kReferenceByNameProperties
 import com.strumenta.kolasu.parsing.ASTParser
@@ -269,7 +270,7 @@ open class KolasuServer<T : Node>(
         text: String
     ) {
 
-        val parsingResult = parser?.parse(text) ?: return
+        val parsingResult = parser?.parse(text, source = URLSource(URI.create(uri).toURL())) ?: return
         files[uri] = parsingResult
 
         val tree = parsingResult.root ?: return
