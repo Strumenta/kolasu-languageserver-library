@@ -99,7 +99,7 @@ class LanguageServerPlugin : Plugin<Project?> {
             shadowJar.description = "Create a combined JAR of project and runtime dependencies"
             val jarTask = project.tasks.getByName("jar") as Jar
             shadowJar.manifest.inheritFrom(jarTask.manifest)
-            shadowJar.manifest.attributes["Main-Class"] = "com.strumenta.$language.languageserver.MainKt"
+            shadowJar.manifest.attributes["Main-Class"] = "${languageServerPackage(language)}.MainKt"
             shadowJar.manifest.attributes["Multi-Release"] = "true"
             shadowJar.manifest.attributes["Class-Path"] =
                 "lucene-core-${BuildConfig.LUCENE_VERSION}.jar lucene-codecs-${BuildConfig.LUCENE_VERSION}.jar"
@@ -123,6 +123,8 @@ class LanguageServerPlugin : Plugin<Project?> {
         project.artifacts.add(ShadowBasePlugin.CONFIGURATION_NAME, shadowJar)
         return shadowJar
     }
+
+    private fun languageServerPackage(language: String): String = "com.strumenta.$language.languageserver"
 
     private fun addLaunchVscodeEditorTask(project: Project, createVscodeExtensionTask: Task) {
         project.tasks.create("launchVscodeEditor").apply {
@@ -188,13 +190,13 @@ class LanguageServerPlugin : Plugin<Project?> {
     private fun createVscodeExtension(project: Project) {
         val shadowJar = project.tasks.getByName(SHADOW_JAR_TASK_NAME) as ShadowJar
         val entryPoint = shadowJar.manifest.attributes["Main-Class"] as String
-        if (entryPoint == "com.strumenta.${configuration.language}.languageserver.MainKt") {
+        if (entryPoint == "${languageServerPackage(configuration.language)}.MainKt") {
             if (!Files.exists(configuration.entryPointPath)) {
                 Files.createDirectories(configuration.entryPointPath.parent)
                 Files.writeString(
                     configuration.entryPointPath,
                     """
-                    package com.strumenta.${configuration.language}.languageserver
+                    package ${languageServerPackage(configuration.language)}
                     
                     import com.strumenta.${configuration.language}.parser.${configuration.language.capitalized()}KolasuParser
                     import com.strumenta.kolasu.languageserver.KolasuServer
