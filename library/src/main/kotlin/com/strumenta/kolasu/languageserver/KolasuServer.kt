@@ -9,10 +9,19 @@ import com.strumenta.kolasu.model.URLSource
 import com.strumenta.kolasu.model.children
 import com.strumenta.kolasu.model.kReferenceByNameProperties
 import com.strumenta.kolasu.parsing.ASTParser
+import com.strumenta.kolasu.parsing.KolasuLexer
+import com.strumenta.kolasu.parsing.KolasuParser
+import com.strumenta.kolasu.parsing.KolasuToken
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
 import com.strumenta.kolasu.traversing.walk
 import com.strumenta.kolasu.validation.IssueSeverity
+import org.antlr.runtime.CommonTokenStream
+import org.antlr.runtime.Lexer
+import org.antlr.runtime.Parser
+import org.antlr.runtime.TokenSource
+import org.antlr.v4.runtime.CharStreams
+import org.antlr.v4.runtime.atn.LexerATNSimulator
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
@@ -31,6 +40,10 @@ import org.apache.lucene.search.SortField
 import org.apache.lucene.search.SortedNumericSortField
 import org.apache.lucene.search.TermQuery
 import org.apache.lucene.store.FSDirectory
+import org.eclipse.lsp4j.CompletionItem
+import org.eclipse.lsp4j.CompletionList
+import org.eclipse.lsp4j.CompletionOptions
+import org.eclipse.lsp4j.CompletionParams
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DiagnosticSeverity
@@ -100,17 +113,19 @@ open class KolasuServer<T : Node>(
     protected open val extensions: List<String> = listOf(),
     protected open val enableDefinitionCapability: Boolean = false,
     protected open val enableReferencesCapability: Boolean = false,
-    protected open val generator: CodeGenerator<T>? = null
+    protected open val generator: CodeGenerator<T>? = null,
+    protected open val completionEngine: CompletionEngine? = null,
 ) : LanguageServer, TextDocumentService, WorkspaceService, LanguageClientAware {
     protected open lateinit var client: LanguageClient
     protected open var configuration: JsonObject = JsonObject()
     protected open var traceLevel: String = "off"
     protected open val folders: MutableList<String> = mutableListOf()
     protected open val files: MutableMap<String, ParsingResult<T>> = mutableMapOf()
-    protected open val indexPath: Path = Paths.get("indexes", UUID.randomUUID().toString())
+    protected open var indexPath: Path? = null
     protected open lateinit var indexWriter: IndexWriter
     protected open lateinit var indexSearcher: IndexSearcher
     protected open val uuid = mutableMapOf<Node, String>()
+    protected open val texts: MutableMap<String, String> = mutableMapOf()
 
     override fun getTextDocumentService() = this
 
@@ -156,6 +171,12 @@ open class KolasuServer<T : Node>(
         capabilities.setDocumentSymbolProvider(true)
         capabilities.setDefinitionProvider(this.enableDefinitionCapability)
         capabilities.setReferencesProvider(this.enableReferencesCapability)
+        if (completionEngine != null) {
+            capabilities.completionProvider = CompletionOptions().apply {
+                resolveProvider = true
+                triggerCharacters = listOf(".", ":", "@")                 // TODO: tweak per language
+            }
+        }
 
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
@@ -228,14 +249,49 @@ open class KolasuServer<T : Node>(
         client.notifyProgress(ProgressParams(Either.forLeft("indexing"), Either.forLeft(WorkDoneProgressEnd())))
     }
 
-    private fun initIndex() {
-        if (Files.exists(indexPath)) {
-            indexPath.toFile().deleteRecursively()
+    private fun resolveIndexPath(): Path {
+        // Allow config from LSP settings JSON (e.g., {"kolasu": {"indexDir": "..."} })
+        val configured = configuration["indexDir"]?.asString
+            ?: System.getProperty("kolasu.index.dir")
+            ?: System.getenv("KOLASU_INDEX_DIR")
+
+        val base = when {
+            configured != null -> Paths.get(configured)
+            folders.isNotEmpty() -> { // first workspace folder
+                val ws = Paths.get(URI(folders.first()))
+                ws.resolve(".kolasu")
+            }
+            else -> Paths.get(System.getProperty("user.home"), ".kolasu")
         }
-        val indexDirectory = FSDirectory.open(indexPath)
-        val indexConfiguration =
-            IndexWriterConfig(StandardAnalyzer()).apply { openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND }
-        indexWriter = IndexWriter(indexDirectory, indexConfiguration)
+
+        // stable per workspace to avoid spraying UUIDs everywhere
+        val wsId = folders.firstOrNull()?.let { Paths.get(URI(it)).toString().hashCode().toString() }
+            ?: "default"
+
+        return base.resolve("indexes").resolve(wsId)
+    }
+
+    private fun initIndex() {
+        if (::indexWriter.isInitialized && indexWriter.isOpen) {
+            indexWriter.close()
+        }
+        var path = resolveIndexPath()
+        try {
+            Files.createDirectories(path)
+        } catch (e: Exception) {
+            // e.g. base is readonly → fall back to tmp
+            val tmpBase = Paths.get(System.getProperty("java.io.tmpdir")).resolve("kolasu-indexes")
+            Files.createDirectories(tmpBase)
+            path = tmpBase.resolve(UUID.randomUUID().toString())
+            Files.createDirectories(path)
+        }
+        indexPath = path
+        val dir = FSDirectory.open(path)
+        val cfg = IndexWriterConfig(StandardAnalyzer()).apply {
+            // rebuild cleanly on each (re)index
+            openMode = IndexWriterConfig.OpenMode.CREATE
+        }
+        indexWriter = IndexWriter(dir, cfg)
         commitIndex()
     }
 
@@ -247,6 +303,7 @@ open class KolasuServer<T : Node>(
     override fun didOpen(params: DidOpenTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = params.textDocument.text
+        texts[uri] = text
 
         parse(uri, text)
     }
@@ -254,6 +311,7 @@ open class KolasuServer<T : Node>(
     override fun didChange(params: DidChangeTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = params.contentChanges.first()?.text ?: return
+        texts[uri] = text
 
         parse(uri, text)
     }
@@ -261,9 +319,37 @@ open class KolasuServer<T : Node>(
     override fun didClose(params: DidCloseTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
         val text = Files.readString(Paths.get(URI(uri)))
+        texts[uri] = text
 
         parse(uri, text)
     }
+
+    override fun completion(params: CompletionParams): CompletableFuture<Either<MutableList<CompletionItem>, CompletionList>> {
+        val uri = params.textDocument.uri
+        val pos = params.position
+        val text = texts[uri] ?: ""
+
+        val items: List<CompletionItem> = try {
+            completionEngine?.complete(uri, text, pos) ?: emptyList()
+        } catch (t: Throwable) {
+            // never throw out of here—log and degrade gracefully
+            client.logTrace(LogTraceParams("completion error", t.stackTraceToString()))
+            emptyList()
+        }
+
+        return CompletableFuture.completedFuture(Either.forLeft(items.toMutableList()))
+    }
+
+    override fun resolveCompletionItem(
+        item: CompletionItem
+    ): CompletableFuture<CompletionItem> =
+        CompletableFuture.completedFuture(
+            try { completionEngine?.resolve(item) ?: item }
+            catch (t: Throwable) {
+                client.logTrace(LogTraceParams("resolve error", t.stackTraceToString()))
+                item
+            }
+        )
 
     open fun parse(
         uri: String,
@@ -606,7 +692,7 @@ open class KolasuServer<T : Node>(
 
     protected open fun commitIndex() {
         indexWriter.commit()
-        val reader = DirectoryReader.open(FSDirectory.open(indexPath))
+        val reader = DirectoryReader.open(indexWriter)
         indexSearcher = IndexSearcher(reader)
     }
 }
