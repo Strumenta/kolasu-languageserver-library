@@ -173,7 +173,7 @@ open class KolasuServer<T : Node>(
         capabilities.setReferencesProvider(this.enableReferencesCapability)
         if (completionEngine != null) {
             capabilities.completionProvider = CompletionOptions().apply {
-                resolveProvider = true
+                resolveProvider = false
                 triggerCharacters = listOf(".", ":", "@")                 // TODO: tweak per language
             }
         }
@@ -359,10 +359,10 @@ open class KolasuServer<T : Node>(
         val parsingResult = parser?.parse(text, source = URLSource(URI.create(uri).toURL())) ?: return
         files[uri] = parsingResult
 
-        val tree = parsingResult.root ?: return
-
-        updateIndex(uri, tree)
-        reportDiagnostics(parsingResult, tree, uri)
+        if (parsingResult.root != null) {
+            updateIndex(uri, parsingResult.root!!)
+        }
+        reportDiagnostics(parsingResult, parsingResult.root!!, uri)
     }
 
     private fun updateIndex(uri: String, tree: Node) {
