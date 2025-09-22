@@ -174,7 +174,7 @@ open class KolasuServer<T : Node>(
         if (completionEngine != null) {
             capabilities.completionProvider = CompletionOptions().apply {
                 resolveProvider = false
-                triggerCharacters = listOf(".", ":", "@")                 // TODO: tweak per language
+                triggerCharacters = listOf(".", ":", "@")                 // TODO: verify this, currently its seems to be triggered on any character regardless of this list
             }
         }
 
@@ -250,7 +250,7 @@ open class KolasuServer<T : Node>(
     }
 
     private fun resolveIndexPath(): Path {
-        // Allow config from LSP settings JSON (e.g., {"kolasu": {"indexDir": "..."} })
+        // Allow config from LSP settings JSON
         val configured = configuration["indexDir"]?.asString
             ?: System.getProperty("kolasu.index.dir")
             ?: System.getenv("KOLASU_INDEX_DIR")
@@ -279,7 +279,7 @@ open class KolasuServer<T : Node>(
         try {
             Files.createDirectories(path)
         } catch (e: Exception) {
-            // e.g. base is readonly → fall back to tmp
+            // there was an error where the base was readonly so we can fall back to tmp
             val tmpBase = Paths.get(System.getProperty("java.io.tmpdir")).resolve("kolasu-indexes")
             Files.createDirectories(tmpBase)
             path = tmpBase.resolve(UUID.randomUUID().toString())
@@ -332,7 +332,7 @@ open class KolasuServer<T : Node>(
         val items: List<CompletionItem> = try {
             completionEngine?.complete(uri, text, pos) ?: emptyList()
         } catch (t: Throwable) {
-            // never throw out of here—log and degrade gracefully
+            // instead of crashing, log the error for better understanding
             client.logTrace(LogTraceParams("completion error", t.stackTraceToString()))
             emptyList()
         }
