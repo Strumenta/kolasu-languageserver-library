@@ -127,6 +127,8 @@ open class KolasuServer<T : Node>(
     protected open val uuid = mutableMapOf<Node, String>()
     protected open val texts: MutableMap<String, String> = mutableMapOf()
 
+    val INDEX_FOLDER = ".starlasu"
+
     override fun getTextDocumentService() = this
 
     override fun getWorkspaceService() = this
@@ -174,7 +176,7 @@ open class KolasuServer<T : Node>(
         if (completionEngine != null) {
             capabilities.completionProvider = CompletionOptions().apply {
                 resolveProvider = false
-                triggerCharacters = listOf(".", ":", "@")                 // TODO: verify this, currently its seems to be triggered on any character regardless of this list
+                triggerCharacters = completionEngine!!.triggerCharacters
             }
         }
 
@@ -259,14 +261,19 @@ open class KolasuServer<T : Node>(
             configured != null -> Paths.get(configured)
             folders.isNotEmpty() -> { // first workspace folder
                 val ws = Paths.get(URI(folders.first()))
-                ws.resolve(".kolasu")
+                ws.resolve(INDEX_FOLDER)
             }
-            else -> Paths.get(System.getProperty("user.home"), ".kolasu")
+            else -> Paths.get(System.getProperty("user.home"), INDEX_FOLDER)
         }
 
-        // stable per workspace to avoid spraying UUIDs everywhere
-        val wsId = folders.firstOrNull()?.let { Paths.get(URI(it)).toString().hashCode().toString() }
-            ?: "default"
+        val wsId = if(folders.isNotEmpty()){
+            Paths.get(URI(folders.first())).toString().hashCode().toString()
+        }else{
+            val tmpBase = Paths.get(System.getProperty("java.io.tmpdir"), INDEX_FOLDER)
+            val uniqueId = UUID.randomUUID().toString()
+            "$tmpBase/$uniqueId"
+        }
+
 
         return base.resolve("indexes").resolve(wsId)
     }
@@ -280,7 +287,7 @@ open class KolasuServer<T : Node>(
             Files.createDirectories(path)
         } catch (e: Exception) {
             // there was an error where the base was readonly so we can fall back to tmp
-            val tmpBase = Paths.get(System.getProperty("java.io.tmpdir")).resolve("kolasu-indexes")
+            val tmpBase = Paths.get(System.getProperty("java.io.tmpdir")).resolve("starlasu-indexes")
             Files.createDirectories(tmpBase)
             path = tmpBase.resolve(UUID.randomUUID().toString())
             Files.createDirectories(path)
@@ -318,10 +325,7 @@ open class KolasuServer<T : Node>(
 
     override fun didClose(params: DidCloseTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
-        val text = Files.readString(Paths.get(URI(uri)))
-        texts[uri] = text
-
-        parse(uri, text)
+        texts[uri] = ""
     }
 
     override fun completion(params: CompletionParams): CompletableFuture<Either<MutableList<CompletionItem>, CompletionList>> {
