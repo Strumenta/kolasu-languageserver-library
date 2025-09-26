@@ -271,6 +271,8 @@ open class KolasuServer<T : Node>(
         }else{
             val tmpBase = Paths.get(System.getProperty("java.io.tmpdir"), INDEX_FOLDER)
             val uniqueId = UUID.randomUUID().toString()
+            log("No workspace folders found. Using temporary directory for index: $tmpBase/$uniqueId",
+                "This may cause the index to be lost after restart.")
             "$tmpBase/$uniqueId"
         }
 
@@ -325,23 +327,24 @@ open class KolasuServer<T : Node>(
 
     override fun didClose(params: DidCloseTextDocumentParams?) {
         val uri = params?.textDocument?.uri ?: return
-        texts[uri] = ""
+        val text = Files.readString(Paths.get(URI(uri)))
+        texts[uri] = text
+
+        parse(uri, text)
     }
 
     override fun completion(params: CompletionParams): CompletableFuture<Either<MutableList<CompletionItem>, CompletionList>> {
         val uri = params.textDocument.uri
         val pos = params.position
         val text = texts[uri] ?: ""
-
-        val items: List<CompletionItem> = try {
-            completionEngine?.complete(uri, text, pos) ?: emptyList()
+        val items: CompletableFuture<Either<MutableList<CompletionItem>, CompletionList>> = try {
+            completionEngine?.complete(uri, text, pos) ?: CompletableFuture.completedFuture(Either.forLeft(mutableListOf()))
         } catch (t: Throwable) {
             // instead of crashing, log the error for better understanding
             client.logTrace(LogTraceParams("completion error", t.stackTraceToString()))
-            emptyList()
+            CompletableFuture.completedFuture(Either.forLeft(mutableListOf()))
         }
-
-        return CompletableFuture.completedFuture(Either.forLeft(items.toMutableList()))
+        return items
     }
 
     override fun resolveCompletionItem(
