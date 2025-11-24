@@ -339,7 +339,7 @@ open class KolasuServer<T : Node>(
         val text = texts[uri] ?: ""
         val items: CompletableFuture<Either<MutableList<CompletionItem>, CompletionList>> = try {
             completionEngine?.complete(uri, text, pos) ?: CompletableFuture.completedFuture(Either.forLeft(mutableListOf()))
-        } catch (t: Throwable) {
+        } catch (t: Exception) {
             // instead of crashing, log the error for better understanding
             client.logTrace(LogTraceParams("completion error", t.stackTraceToString()))
             CompletableFuture.completedFuture(Either.forLeft(mutableListOf()))
@@ -352,7 +352,7 @@ open class KolasuServer<T : Node>(
     ): CompletableFuture<CompletionItem> =
         CompletableFuture.completedFuture(
             try { completionEngine?.resolve(item) ?: item }
-            catch (t: Throwable) {
+            catch (t: Exception) {
                 client.logTrace(LogTraceParams("resolve error", t.stackTraceToString()))
                 item
             }
