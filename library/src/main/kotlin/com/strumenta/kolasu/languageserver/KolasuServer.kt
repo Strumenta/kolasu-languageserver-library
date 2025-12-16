@@ -416,10 +416,12 @@ open class KolasuServer<T : Node>(
 
         if (showParsingErrors) {
             for (issue in parsingResult.issues) {
-                var range = Range(Position(0, 0), Position(0, 0))
-                if (issue.position!=null){
-                    range = toLSPRange(issue.position!!)
-                }
+                val range =
+                    if (issue.position != null) {
+                        toLSPRange(issue.position!!)
+                    } else {
+                        Range(Position(0, 0), Position(0, 0))
+                    }
                 diagnostics.add(
                     Diagnostic(
                         range,
