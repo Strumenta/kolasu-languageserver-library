@@ -9,19 +9,10 @@ import com.strumenta.kolasu.model.URLSource
 import com.strumenta.kolasu.model.children
 import com.strumenta.kolasu.model.kReferenceByNameProperties
 import com.strumenta.kolasu.parsing.ASTParser
-import com.strumenta.kolasu.parsing.KolasuLexer
-import com.strumenta.kolasu.parsing.KolasuParser
-import com.strumenta.kolasu.parsing.KolasuToken
 import com.strumenta.kolasu.parsing.ParsingResult
 import com.strumenta.kolasu.traversing.findByPosition
 import com.strumenta.kolasu.traversing.walk
 import com.strumenta.kolasu.validation.IssueSeverity
-import org.antlr.runtime.CommonTokenStream
-import org.antlr.runtime.Lexer
-import org.antlr.runtime.Parser
-import org.antlr.runtime.TokenSource
-import org.antlr.v4.runtime.CharStreams
-import org.antlr.v4.runtime.atn.LexerATNSimulator
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
@@ -425,9 +416,15 @@ open class KolasuServer<T : Node>(
 
         if (showParsingErrors) {
             for (issue in parsingResult.issues) {
+                val range =
+                    if (issue.position != null) {
+                        toLSPRange(issue.position!!)
+                    } else {
+                        Range(Position(0, 0), Position(0, 0))
+                    }
                 diagnostics.add(
                     Diagnostic(
-                        toLSPRange(issue.position!!),
+                        range,
                         issue.message,
                         toLSPSeverity(issue.severity),
                         "$language parser"
@@ -435,6 +432,7 @@ open class KolasuServer<T : Node>(
                 )
             }
         }
+
         if (showASTWarnings || showLeafPositions) {
             for (node in tree.walk()) {
                 if (node.children.isNotEmpty() || node.position == null) continue
